@@ -26,11 +26,16 @@ pub struct RuntimeStatus {
     pub rosetta_installed: bool,
 }
 
-/// Locate the GPTK-patched wine64 binary. Lookup order:
+/// Locate a GPTK-patched wine64 binary. Lookup order:
 ///   1. `CELLAR_WINE` env var (manual override)
-///   2. Apple Game Porting Toolkit install locations
-///   3. Homebrew game-porting-toolkit formula
-///   4. Plain wine64 on `PATH`
+///   2. Homebrew apple/apple/game-porting-toolkit formula
+///   3. Apple GPTK .app bundle in /Applications
+///   4. Whisky's bundled wine64 (GPTK-patched, ships with the app)
+///   5. Plain wine64 on `PATH` (last resort, may not be GPTK-patched)
+///
+/// Whisky is included because Apple's `game-porting-toolkit` formula
+/// depends on `openssl@1.1` which Homebrew dropped, so a lot of Macs
+/// will have Whisky installed but no GPTK formula.
 pub fn find_wine_bin() -> Option<PathBuf> {
     if let Ok(p) = std::env::var("CELLAR_WINE") {
         let path = PathBuf::from(p);
@@ -38,10 +43,16 @@ pub fn find_wine_bin() -> Option<PathBuf> {
             return Some(path);
         }
     }
-    let candidates = [
+    let home = std::env::var("HOME").unwrap_or_default();
+    let whisky_wine = format!(
+        "{}/Library/Application Support/com.isaacmarovitz.Whisky/Libraries/Wine/bin/wine64",
+        home
+    );
+    let candidates: [&str; 6] = [
         "/usr/local/opt/game-porting-toolkit/bin/wine64",
         "/opt/homebrew/opt/game-porting-toolkit/bin/wine64",
         "/Applications/Game Porting Toolkit.app/Contents/Resources/wine/bin/wine64",
+        whisky_wine.as_str(),
         "/opt/homebrew/bin/wine64",
         "/usr/local/bin/wine64",
     ];
@@ -55,9 +66,19 @@ pub fn find_wine_bin() -> Option<PathBuf> {
 }
 
 fn gptk_installed() -> bool {
-    PathBuf::from("/opt/homebrew/opt/game-porting-toolkit").exists()
+    if PathBuf::from("/opt/homebrew/opt/game-porting-toolkit").exists()
         || PathBuf::from("/usr/local/opt/game-porting-toolkit").exists()
         || PathBuf::from("/Applications/Game Porting Toolkit.app").exists()
+    {
+        return true;
+    }
+    // Whisky ships GPTK internally; count it as present.
+    let home = std::env::var("HOME").unwrap_or_default();
+    PathBuf::from(format!(
+        "{}/Library/Application Support/com.isaacmarovitz.Whisky/Libraries/Wine/bin/wine64",
+        home
+    ))
+    .exists()
 }
 
 fn rosetta_installed() -> bool {

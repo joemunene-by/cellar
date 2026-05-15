@@ -67,14 +67,38 @@ if [ -d /opt/homebrew/bin ]; then
   export PATH="/opt/homebrew/bin:$PATH"
 fi
 
-# ---------- 6. Apple GPTK formula ----------
+# ---------- 6. GPTK-patched wine64 ----------
+#
+# Two acceptable sources, in preference order:
+#   (a) Apple's homebrew formula: apple/apple/game-porting-toolkit
+#   (b) Whisky.app, which bundles a GPTK-patched wine64 internally
+#
+# (a) is the canonical path but its formula depends on openssl@1.1,
+# which Homebrew has dropped. On affected Macs the install will fail
+# with a "No available formula with the name openssl@1.1" warning. We
+# attempt it anyway and fall back to (b) on failure.
 
+whisky_wine="$HOME/Library/Application Support/com.isaacmarovitz.Whisky/Libraries/Wine/bin/wine64"
+
+gptk_ok=0
 if brew list game-porting-toolkit >/dev/null 2>&1; then
   log "Game Porting Toolkit already installed via brew."
+  gptk_ok=1
 else
-  log "tapping apple/apple and installing game-porting-toolkit. This pulls a sizeable Wine build."
-  brew tap apple/apple http://github.com/apple/homebrew-apple
-  brew install apple/apple/game-porting-toolkit
+  log "tapping apple/apple and trying to install game-porting-toolkit."
+  brew tap apple/apple http://github.com/apple/homebrew-apple 2>/dev/null || true
+  if brew install apple/apple/game-porting-toolkit 2>&1 | tee /tmp/cellar-gptk-install.log; then
+    log "game-porting-toolkit formula installed."
+    gptk_ok=1
+  else
+    log "game-porting-toolkit formula install failed (likely openssl@1.1 dep dropped from Homebrew)."
+    log "checking for Whisky as a fallback runtime."
+  fi
+fi
+
+if [ "$gptk_ok" != "1" ] && [ ! -x "$whisky_wine" ]; then
+  log "Whisky not installed. Installing it now (provides the same GPTK-patched wine64)."
+  brew install --cask whisky
 fi
 
 # ---------- 7. Verify wine64 ----------
@@ -83,6 +107,7 @@ wine_bin=""
 for cand in \
   /opt/homebrew/opt/game-porting-toolkit/bin/wine64 \
   /usr/local/opt/game-porting-toolkit/bin/wine64 \
+  "$whisky_wine" \
   /opt/homebrew/bin/wine64; do
   if [ -x "$cand" ]; then
     wine_bin="$cand"
@@ -91,7 +116,8 @@ for cand in \
 done
 
 if [ -z "$wine_bin" ]; then
-  err "wine64 not found after install. Check 'brew --prefix game-porting-toolkit'."
+  err "wine64 not found after install. Neither the GPTK formula nor Whisky shipped one."
+  err "Manual fix: install Whisky from https://getwhisky.app or pin openssl@1.1 yourself."
   exit 1
 fi
 
