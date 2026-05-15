@@ -15,6 +15,8 @@ export default function SettingsPane() {
   const [status, setStatus] = useState<RuntimeStatus | null>(null);
   const [bottles, setBottles] = useState<Bottle[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [wineTest, setWineTest] = useState<{ ok: boolean; output: string } | null>(null);
+  const [testingWine, setTestingWine] = useState(false);
 
   const reload = useCallback(async () => {
     setError(null);
@@ -30,6 +32,19 @@ export default function SettingsPane() {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  const testWine = async () => {
+    setTestingWine(true);
+    setWineTest(null);
+    try {
+      const out = await runtime.testWine();
+      setWineTest({ ok: true, output: out });
+    } catch (err) {
+      setWineTest({ ok: false, output: formatErr(err) });
+    } finally {
+      setTestingWine(false);
+    }
+  };
 
   const removeBottle = async (b: Bottle) => {
     if (!confirm(`Delete bottle "${b.name}"? This removes the Wine prefix and any games installed inside.`)) {
@@ -84,6 +99,19 @@ export default function SettingsPane() {
           <div className="hint-box">
             One or more pieces of the runtime stack are missing. Run{' '}
             <code>./scripts/setup-gptk.sh</code> from the cellar repo root to install them.
+          </div>
+        )}
+
+        {status?.wine_path && (
+          <div className="wine-test-row">
+            <button className="btn" onClick={testWine} disabled={testingWine} type="button">
+              {testingWine ? 'Testing...' : 'Test wine'}
+            </button>
+            {wineTest && (
+              <code className={wineTest.ok ? 'ok' : 'bad'}>
+                {wineTest.output}
+              </code>
+            )}
           </div>
         )}
       </section>

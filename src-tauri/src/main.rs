@@ -28,6 +28,7 @@ fn main() {
             library::library_remove,
             library::library_update_settings,
             runtime::runtime_status,
+            runtime::runtime_test_wine,
             runtime::runtime_launch,
             installer::installer_detect,
             installer::installer_run,

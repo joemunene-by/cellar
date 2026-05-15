@@ -50,6 +50,17 @@ export default function InstallWizard() {
     wine.listBottles().then(setBottles).catch((e) => setError(formatErr(e)));
   }, [step]);
 
+  // When the register step opens with a fresh install_dir, default to
+  // the selected bottle's drive_c so the user only needs to dig into
+  // the right Program Files subfolder instead of browsing from /.
+  useEffect(() => {
+    if (step !== 'register' || installDir) return;
+    const bottle = bottles.find((b) => b.id === selectedBottle);
+    if (bottle?.prefix_path) {
+      setInstallDir(`${bottle.prefix_path}/drive_c`);
+    }
+  }, [step, selectedBottle, bottles, installDir]);
+
   // Subscribe to installer events while running.
   useEffect(() => {
     if (!installRunning) return;

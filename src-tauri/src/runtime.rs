@@ -105,6 +105,30 @@ pub fn runtime_status() -> RuntimeStatus {
     }
 }
 
+/// Run `wine64 --version` to confirm the binary actually starts.
+/// Returns the trimmed stdout on success. Useful as a "smoke test"
+/// button in Settings; failures here usually mean a quarantine flag,
+/// a Rosetta issue, or a missing GPTK dep, not a path problem.
+#[tauri::command]
+pub async fn runtime_test_wine() -> Result<String, RuntimeError> {
+    let wine_bin = find_wine_bin().ok_or(RuntimeError::WineMissing)?;
+    let output = tokio::process::Command::new(&wine_bin)
+        .arg("--version")
+        .output()
+        .await
+        .map_err(|e| RuntimeError::SpawnFailed { message: e.to_string() })?;
+    if !output.status.success() {
+        return Err(RuntimeError::SpawnFailed {
+            message: format!(
+                "wine64 --version exited {:?}. stderr: {}",
+                output.status.code(),
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        });
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
 /// Launch a game from the library by id. Spawns the wine process and
 /// returns immediately; the game runs detached.
 #[tauri::command]

@@ -43,6 +43,12 @@ pub struct Bottle {
     /// Windows version to report to the guest: "win10", "win11", "win7", etc.
     pub windows_version: String,
     pub created_ms: u128,
+    /// Absolute path to the Wine prefix directory. Not stored in
+    /// `bottle.json` (derived from id + the cellar layout) so older
+    /// bottle files still deserialise. Always populated when returned
+    /// by `wine_create_bottle` or `wine_list_bottles`.
+    #[serde(default)]
+    pub prefix_path: String,
 }
 
 fn bottles_root() -> Result<PathBuf, WineError> {
@@ -97,17 +103,21 @@ pub async fn wine_create_bottle(
         });
     }
 
-    let bottle = Bottle {
+    let mut bottle = Bottle {
         id: id.clone(),
         name,
         windows_version,
         created_ms: now_ms(),
+        prefix_path: String::new(),
     };
     fs::write(
         bottle_metadata_path(&id)?,
         serde_json::to_string_pretty(&bottle)
             .map_err(|e| WineError::IoError { message: e.to_string() })?,
     )?;
+    // Populate the derived path on the in-memory copy only; we do not
+    // need it in the file (the id is what's authoritative).
+    bottle.prefix_path = prefix.to_string_lossy().to_string();
     Ok(bottle)
 }
 
@@ -126,7 +136,12 @@ pub fn wine_list_bottles() -> Result<Vec<Bottle>, WineError> {
             continue;
         }
         let text = fs::read_to_string(&meta)?;
-        if let Ok(b) = serde_json::from_str::<Bottle>(&text) {
+        if let Ok(mut b) = serde_json::from_str::<Bottle>(&text) {
+            // Derive the prefix path so the renderer can show it / use
+            // it to pre-fill the "install dir" field of the wizard.
+            if let Ok(p) = bottle_prefix_path(&b.id) {
+                b.prefix_path = p.to_string_lossy().to_string();
+            }
             out.push(b);
         }
     }

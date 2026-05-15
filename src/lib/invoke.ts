@@ -16,6 +16,9 @@ export interface Bottle {
   name: string;
   windows_version: string;
   created_ms: number;
+  /// Absolute path to the Wine prefix (the directory whose drive_c
+  /// subdir is the guest C:\). Populated by both create + list.
+  prefix_path: string;
 }
 
 export interface GameSettings {
@@ -77,6 +80,7 @@ export const library = {
 
 export const runtime = {
   status: () => invoke<RuntimeStatus>('runtime_status'),
+  testWine: () => invoke<string>('runtime_test_wine'),
   launch: (gameId: string) => invoke<void>('runtime_launch', { game_id: gameId }),
 };
 

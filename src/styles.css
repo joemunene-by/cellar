@@ -506,6 +506,22 @@ code {
   color: #888;
 }
 
+.wine-test-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.wine-test-row code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ------------------------------------------------------------
  * Scrollbars
  * ------------------------------------------------------------ */
