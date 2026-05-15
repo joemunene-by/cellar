@@ -1,0 +1,10 @@
+target/
+src-tauri/target/
+src-tauri/gen/
+node_modules/
+dist/
+tsconfig.tsbuildinfo
+*.lock
+.DS_Store
+.env
+.env.*

@@ -1,0 +1,27 @@
+[package]
+name = "cellar"
+version = "0.1.0"
+description = "Mac mini M4 launcher for Windows games (Wine + GPTK + DXVK)"
+authors = ["Joe Munene"]
+license = "MIT"
+repository = "https://github.com/joemunene-by/cellar"
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = ["macos-private-api"] }
+tauri-plugin-shell = "2.0"
+tauri-plugin-dialog = "2.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+directories = "5"
+walkdir = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

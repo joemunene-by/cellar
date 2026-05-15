@@ -1,0 +1,533 @@
+/*
+ * cellar: global styles. Dark theme tuned for living in a Mac window.
+ * Single layout: sidebar + main pane. Library / Install / Settings
+ * panes share the same chrome.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0d0d10;
+  color: #e0e0e4;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #1a1a20;
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: #ffd09b;
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------
+ * App layout
+ * ------------------------------------------------------------ */
+
+.app {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  height: 100vh;
+}
+
+.sidebar {
+  background: #14141a;
+  border-right: 1px solid #22222a;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-brand {
+  padding: 18px 18px 12px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px;
+  flex: 1;
+}
+
+.sidebar-tab {
+  background: transparent;
+  border: 0;
+  color: #999;
+  padding: 8px 12px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.sidebar-tab:hover {
+  color: #ddd;
+  background: #1c1c24;
+}
+
+.sidebar-tab-active {
+  background: #243254;
+  color: #fff;
+}
+
+.sidebar-footer {
+  padding: 12px 18px;
+  font-size: 11px;
+  color: #555;
+  border-top: 1px solid #22222a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.main {
+  overflow-y: auto;
+  background: #0d0d10;
+}
+
+/* ------------------------------------------------------------
+ * Shared pane chrome
+ * ------------------------------------------------------------ */
+
+.pane {
+  padding: 24px 28px;
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.pane-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  color: #fff;
+}
+
+.pane-loading {
+  padding: 40px;
+  color: #888;
+  font-style: italic;
+}
+
+.muted {
+  color: #888;
+}
+
+.ok {
+  color: #6acb6a;
+  font-weight: 600;
+}
+
+.bad {
+  color: #ff7878;
+  font-weight: 600;
+}
+
+.error-box {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  background: #2a1414;
+  border: 1px solid #5a2828;
+  color: #ffa080;
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+.hint-box {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #1c1f2a;
+  border: 1px solid #2a3142;
+  border-radius: 5px;
+  font-size: 12px;
+  color: #b8c4dc;
+}
+
+.empty-state {
+  background: #14141a;
+  border: 1px solid #22222a;
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  margin-top: 24px;
+}
+
+.empty-state h3 {
+  margin: 0 0 8px;
+  color: #fff;
+}
+
+.empty-state p {
+  margin: 0;
+  color: #888;
+}
+
+/* ------------------------------------------------------------
+ * Buttons
+ * ------------------------------------------------------------ */
+
+.btn {
+  background: #1f1f28;
+  border: 1px solid #2c2c38;
+  color: #ddd;
+  padding: 7px 14px;
+  cursor: pointer;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.btn:hover:not(:disabled) {
+  background: #2a2a36;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn-primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: #2c2c38;
+  color: #999;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: #1c1c24;
+  color: #ddd;
+}
+
+/* ------------------------------------------------------------
+ * Inputs
+ * ------------------------------------------------------------ */
+
+.input {
+  background: #0a0a0e;
+  border: 1px solid #2c2c38;
+  color: #ddd;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+}
+
+.input:focus {
+  border-color: #4a9eff;
+}
+
+.input-with-button {
+  display: flex;
+  gap: 6px;
+}
+
+.input-with-button .input {
+  flex: 1;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #aaa;
+}
+
+/* ------------------------------------------------------------
+ * Library cards
+ * ------------------------------------------------------------ */
+
+.game-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.game-card {
+  background: #14141a;
+  border: 1px solid #22222a;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 160px;
+}
+
+.game-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.game-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: #888;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.game-card-exe {
+  font-size: 11px;
+  color: #aaa;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+}
+
+/* ------------------------------------------------------------
+ * Install wizard
+ * ------------------------------------------------------------ */
+
+.step-pill {
+  background: #1c1c24;
+  border: 1px solid #2c2c38;
+  color: #aaa;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.install-step {
+  background: #14141a;
+  border: 1px solid #22222a;
+  border-radius: 8px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.install-step h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #fff;
+}
+
+.install-step p {
+  margin: 0;
+  color: #aaa;
+  font-size: 13px;
+}
+
+.install-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.install-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.install-meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meta-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #777;
+  letter-spacing: 0.06em;
+}
+
+.hints {
+  list-style: square inside;
+  margin: 0;
+  padding: 0;
+  color: #aaa;
+  font-size: 12px;
+}
+
+.bottle-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bottle-list li {
+  background: #0d0d12;
+  border: 1px solid #22222a;
+  border-radius: 5px;
+  padding: 8px 12px;
+}
+
+.bottle-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.bottle-meta {
+  color: #888;
+  font-size: 11px;
+  margin-left: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.bottle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.new-bottle {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.new-bottle .input {
+  flex: 1;
+}
+
+.log {
+  background: #07070a;
+  border: 1px solid #22222a;
+  border-radius: 5px;
+  padding: 10px 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: #bcd;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.install-ok {
+  color: #6acb6a;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.install-fail {
+  color: #ff7878;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------
+ * Settings
+ * ------------------------------------------------------------ */
+
+.settings-section {
+  background: #14141a;
+  border: 1px solid #22222a;
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin-bottom: 16px;
+}
+
+.settings-section h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #aaa;
+}
+
+.kv {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.kv td {
+  padding: 6px 0;
+  border-bottom: 1px solid #1c1c24;
+  font-size: 13px;
+}
+
+.kv td:first-child {
+  width: 200px;
+  color: #888;
+}
+
+/* ------------------------------------------------------------
+ * Scrollbars
+ * ------------------------------------------------------------ */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a32;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a44;
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
