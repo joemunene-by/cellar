@@ -271,17 +271,16 @@ pub async fn installer_run(
         inno_log_path
     );
 
-    // Wrap the installer in wine's virtual desktop. Wine's bare
-    // Cocoa driver leaves the installer attached to a "no driver"
-    // root window; FitGirl's ISDone progress UI then fails to spawn
-    // its child progress window (Inno error 1400, ERROR_INVALID_
-    // WINDOW_HANDLE). Running through `explorer /desktop=<name>,WxH`
-    // gives the installer a stable wine-managed desktop window to
-    // parent its dialogs to. This is the same workaround Whisky's
-    // own install path uses internally.
+    // NOTE: an earlier version wrapped the launch in
+    // `wine64 explorer /desktop=...`, but that detaches: explorer
+    // spawns setup.exe and immediately exits, so child.wait() sees
+    // an instant "done" and cellar's wizard skips to the register
+    // step the second you click anything in the language picker.
+    // Joe confirmed CoD MW3's actual install-time failures are
+    // wrong-install-path errors, not window handle issues, so the
+    // wrapper was solving the wrong problem. Launching setup.exe
+    // directly so our wait blocks until the real installer exits.
     let mut child = Command::new(&wine_bin)
-        .arg("explorer")
-        .arg("/desktop=cellar-installer,1280x720")
         .arg(&installer_exe)
         .arg(format!("/LOG={}", inno_log_path))
         .env("WINEPREFIX", &prefix)
