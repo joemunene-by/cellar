@@ -275,6 +275,18 @@ pub async fn installer_run(
         .arg(&installer_exe)
         .arg(format!("/LOG={}", inno_log_path))
         .env("WINEPREFIX", &prefix)
+        // Disable audio for installer runs. Whisky's wine 7.7
+        // winecoreaudio driver null-derefs in
+        // ca_channel_layout_to_channel_mask when an installer tries
+        // to play sound (notably FitGirl's background music during
+        // unpack). The crash takes the whole installer down with a
+        // page fault and exit 5, even though no audio is actually
+        // needed for the install to succeed. Game launches in
+        // runtime::runtime_launch still get audio.
+        .env("WINEAUDIODRIVER", "")
+        // Quieter wine log so the install log we surface is signal,
+        // not the firehose of fixmes that mostly do not matter.
+        .env("WINEDEBUG", "-all,err+seh")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .stdin(Stdio::null())
