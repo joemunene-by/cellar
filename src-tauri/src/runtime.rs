@@ -50,8 +50,12 @@ pub fn find_wine_bin() -> Option<PathBuf> {
         }
     }
     let home = std::env::var("HOME").unwrap_or_default();
-    let mythic_wine =
-        "/Applications/Mythic.app/Contents/Resources/Engine/Wine/bin/wine64".to_string();
+    // Mythic.app downloads its wine engine to the user's Application
+    // Support dir on first launch, not into the .app bundle.
+    let mythic_wine = format!(
+        "{}/Library/Application Support/Mythic/Engine/wine/bin/wine64",
+        home
+    );
     let crossover_wine = "/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine64"
         .to_string();
     let whisky_wine = format!(
