@@ -57,6 +57,14 @@ export interface DetectResult {
 
 // ----------------------- API -----------------------
 
+export interface ExeCandidate {
+  path: string;
+  name: string;
+  parent_dir: string;
+  size: number;
+  modified_ms: number;
+}
+
 export const wine = {
   createBottle: (name: string, windowsVersion: string) =>
     invoke<Bottle>('wine_create_bottle', { name, windows_version: windowsVersion }),
@@ -64,6 +72,8 @@ export const wine = {
   removeBottle: (id: string) => invoke<void>('wine_remove_bottle', { id }),
   injectDxvk: (id: string) => invoke<void>('wine_inject_dxvk', { id }),
   bottleDxvkStatus: (id: string) => invoke<boolean>('wine_bottle_dxvk_status', { id }),
+  scanBottleExes: (id: string, maxCount = 20) =>
+    invoke<ExeCandidate[]>('wine_scan_bottle_exes', { id, max_count: maxCount }),
 };
 
 export const library = {

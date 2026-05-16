@@ -235,6 +235,117 @@ pub fn wine_bottle_dxvk_status(id: String) -> Result<bool, WineError> {
     Ok(probe.exists())
 }
 
+#[derive(Serialize)]
+pub struct ExeCandidate {
+    pub path: String,
+    pub name: String,
+    pub parent_dir: String,
+    pub size: u64,
+    pub modified_ms: u128,
+}
+
+/// Walk a bottle's `drive_c` looking for `.exe` files that are
+/// plausibly game launchers. Skips the Windows system trees and a few
+/// common installer-leftover directories, sorts by size descending
+/// (game executables tend to be the biggest in their folder), and
+/// returns up to `max_count` candidates.
+///
+/// Used by the install wizard's register step to give the user a
+/// clickable list of "did you mean this .exe?" instead of forcing
+/// them to browse the bottle filesystem manually.
+#[tauri::command]
+pub fn wine_scan_bottle_exes(
+    id: String,
+    max_count: Option<usize>,
+) -> Result<Vec<ExeCandidate>, WineError> {
+    let prefix = bottle_prefix_path(&id)?;
+    let drive_c = prefix.join("drive_c");
+    if !drive_c.exists() {
+        return Err(WineError::NotFound { id });
+    }
+
+    let mut found: Vec<ExeCandidate> = Vec::new();
+    for entry in walkdir::WalkDir::new(&drive_c)
+        .max_depth(8)
+        .into_iter()
+        .filter_entry(|e| !is_uninteresting_dir(e.file_name().to_string_lossy().as_ref()))
+        .flatten()
+    {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.to_lowercase().ends_with(".exe") {
+            continue;
+        }
+        // Skip the obvious non-game .exes shipped with wine itself or
+        // dropped by installers as helpers.
+        let lower = name.to_lowercase();
+        if matches!(
+            lower.as_str(),
+            "uninstall.exe"
+                | "unins000.exe"
+                | "unins001.exe"
+                | "unins002.exe"
+                | "setup.exe"
+                | "regsvr32.exe"
+                | "rundll32.exe"
+                | "winemenubuilder.exe"
+                | "iexplore.exe"
+                | "explorer.exe"
+                | "vcredist_x64.exe"
+                | "vcredist_x86.exe"
+        ) {
+            continue;
+        }
+        let meta = match entry.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let size = meta.len();
+        // Skip tiny stubs (under 64KB are almost never the game).
+        if size < 64 * 1024 {
+            continue;
+        }
+        let modified_ms = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let parent_dir = entry
+            .path()
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        found.push(ExeCandidate {
+            path: entry.path().to_string_lossy().to_string(),
+            name,
+            parent_dir,
+            size,
+            modified_ms,
+        });
+    }
+
+    // Bigger first; game launcher tends to be the heaviest .exe in its
+    // folder (often >50 MB once textures and DLLs are linked in).
+    found.sort_by(|a, b| b.size.cmp(&a.size));
+    found.truncate(max_count.unwrap_or(20));
+    Ok(found)
+}
+
+fn is_uninteresting_dir(name: &str) -> bool {
+    matches!(
+        name.to_lowercase().as_str(),
+        "windows"
+            | "programdata"
+            | "$recycle.bin"
+            | "users"
+            | "documents and settings"
+            | "system volume information"
+    )
+}
+
 /// Delete a bottle. Removes the prefix and metadata; cannot be undone.
 #[tauri::command]
 pub fn wine_remove_bottle(id: String) -> Result<(), WineError> {

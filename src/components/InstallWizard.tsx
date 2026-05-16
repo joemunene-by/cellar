@@ -14,7 +14,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { wine, installer, library, isCellarError } from '../lib/invoke';
-import type { Bottle, DetectResult, InstallerKind } from '../lib/invoke';
+import type { Bottle, DetectResult, ExeCandidate, InstallerKind } from '../lib/invoke';
 
 type Step = 'pick' | 'detect' | 'bottle' | 'run' | 'register';
 
@@ -43,6 +43,8 @@ export default function InstallWizard() {
   const [gameName, setGameName] = useState('');
   const [installDir, setInstallDir] = useState('');
   const [launchExe, setLaunchExe] = useState('');
+  const [exeCandidates, setExeCandidates] = useState<ExeCandidate[]>([]);
+  const [scanningExes, setScanningExes] = useState(false);
 
   // Refresh bottles when reaching the bottle-pick step.
   useEffect(() => {
@@ -60,6 +62,40 @@ export default function InstallWizard() {
       setInstallDir(`${bottle.prefix_path}/drive_c`);
     }
   }, [step, selectedBottle, bottles, installDir]);
+
+  // When the register step opens, walk the bottle's drive_c for .exe
+  // candidates the user can click instead of browsing manually. Skip
+  // when the bottle is unset (defensive; should not happen).
+  useEffect(() => {
+    if (step !== 'register' || !selectedBottle) return;
+    let cancelled = false;
+    setScanningExes(true);
+    wine
+      .scanBottleExes(selectedBottle, 20)
+      .then((res) => {
+        if (!cancelled) setExeCandidates(res);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(formatErr(err));
+      })
+      .finally(() => {
+        if (!cancelled) setScanningExes(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, selectedBottle]);
+
+  const pickCandidate = (c: ExeCandidate) => {
+    setLaunchExe(c.path);
+    setInstallDir(c.parent_dir);
+    // Default the game name to the .exe's folder name (usually the
+    // game title) the first time, unless the user already typed one.
+    if (!gameName.trim()) {
+      const folder = c.parent_dir.split('/').filter(Boolean).pop() ?? '';
+      setGameName(folder || c.name.replace(/\.exe$/i, ''));
+    }
+  };
 
   // Subscribe to installer events while running.
   useEffect(() => {
@@ -338,6 +374,34 @@ export default function InstallWizard() {
             to launch.
           </p>
 
+          {(scanningExes || exeCandidates.length > 0) && (
+            <div className="exe-candidates">
+              <div className="meta-label">
+                {scanningExes ? 'Scanning bottle for .exe files...' : 'Detected .exe files (click to use)'}
+              </div>
+              {!scanningExes && (
+                <ul className="exe-list">
+                  {exeCandidates.map((c) => (
+                    <li key={c.path}>
+                      <button className="exe-row" onClick={() => pickCandidate(c)} type="button">
+                        <span className="exe-name">{c.name}</span>
+                        <span className="exe-size">{prettyBytes(c.size)}</span>
+                        <span className="exe-dir" title={c.parent_dir}>
+                          {c.parent_dir.replace(/^.*\/drive_c/, 'C:')}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                  {exeCandidates.length === 0 && (
+                    <li className="muted">
+                      No .exe candidates found in the bottle yet. Browse manually below.
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
+          )}
+
           <div className="form">
             <label>
               Game name
@@ -395,6 +459,13 @@ export default function InstallWizard() {
       )}
     </div>
   );
+}
+
+function prettyBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 function kindLabel(k: InstallerKind): string {

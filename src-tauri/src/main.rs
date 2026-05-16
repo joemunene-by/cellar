@@ -25,6 +25,7 @@ fn main() {
             wine::wine_remove_bottle,
             wine::wine_inject_dxvk,
             wine::wine_bottle_dxvk_status,
+            wine::wine_scan_bottle_exes,
             library::library_list,
             library::library_add,
             library::library_remove,

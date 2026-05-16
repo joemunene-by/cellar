@@ -528,6 +528,61 @@ code {
   flex-shrink: 0;
 }
 
+.exe-candidates {
+  background: #0d0d12;
+  border: 1px solid #22222a;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 14px;
+}
+
+.exe-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.exe-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 2fr;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: #ddd;
+  padding: 5px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.exe-row:hover {
+  background: #1c1c24;
+}
+
+.exe-name {
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exe-size {
+  color: #8aaaff;
+  text-align: right;
+}
+
+.exe-dir {
+  color: #888;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ------------------------------------------------------------
  * Scrollbars
  * ------------------------------------------------------------ */
