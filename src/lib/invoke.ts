@@ -3,8 +3,12 @@
  *
  * Every native command lives behind a function here so React components
  * import a stable, typed surface rather than calling raw command names.
- * Keys in the invoke payload mirror the Rust parameter names (snake_case)
- * because Tauri 2 does not auto-convert arg casing.
+ *
+ * Tauri 2 auto-converts JS `camelCase` arg keys to Rust `snake_case`
+ * on the wire (e.g. JS `windowsVersion` maps to Rust `windows_version`).
+ * We always pass camelCase from this module; the Rust side keeps its
+ * idiomatic naming. Sending snake_case from JS produces a
+ * `missing required key <camelCaseName>` error.
  */
 
 import { invoke } from '@tauri-apps/api/core';
@@ -67,13 +71,13 @@ export interface ExeCandidate {
 
 export const wine = {
   createBottle: (name: string, windowsVersion: string) =>
-    invoke<Bottle>('wine_create_bottle', { name, windows_version: windowsVersion }),
+    invoke<Bottle>('wine_create_bottle', { name, windowsVersion }),
   listBottles: () => invoke<Bottle[]>('wine_list_bottles'),
   removeBottle: (id: string) => invoke<void>('wine_remove_bottle', { id }),
   injectDxvk: (id: string) => invoke<void>('wine_inject_dxvk', { id }),
   bottleDxvkStatus: (id: string) => invoke<boolean>('wine_bottle_dxvk_status', { id }),
   scanBottleExes: (id: string, maxCount = 20) =>
-    invoke<ExeCandidate[]>('wine_scan_bottle_exes', { id, max_count: maxCount }),
+    invoke<ExeCandidate[]>('wine_scan_bottle_exes', { id, maxCount }),
   runWinetricks: (id: string, verb: string) =>
     invoke<number>('wine_run_winetricks', { id, verb }),
 };
@@ -81,12 +85,7 @@ export const wine = {
 export const library = {
   list: () => invoke<Game[]>('library_list'),
   add: (params: { name: string; bottleId: string; installDir: string; launchExe: string }) =>
-    invoke<Game>('library_add', {
-      name: params.name,
-      bottle_id: params.bottleId,
-      install_dir: params.installDir,
-      launch_exe: params.launchExe,
-    }),
+    invoke<Game>('library_add', params),
   remove: (id: string) => invoke<void>('library_remove', { id }),
   updateSettings: (id: string, settings: GameSettings) =>
     invoke<void>('library_update_settings', { id, settings }),
@@ -95,13 +94,13 @@ export const library = {
 export const runtime = {
   status: () => invoke<RuntimeStatus>('runtime_status'),
   testWine: () => invoke<string>('runtime_test_wine'),
-  launch: (gameId: string) => invoke<void>('runtime_launch', { game_id: gameId }),
+  launch: (gameId: string) => invoke<void>('runtime_launch', { gameId }),
 };
 
 export const installer = {
   detect: (path: string) => invoke<DetectResult>('installer_detect', { path }),
   run: (bottleId: string, installerExe: string) =>
-    invoke<number>('installer_run', { bottle_id: bottleId, installer_exe: installerExe }),
+    invoke<number>('installer_run', { bottleId, installerExe }),
 };
 
 /** Best-effort discrimination on the {kind, ...} error shape used by all

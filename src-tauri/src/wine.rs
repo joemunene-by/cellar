@@ -147,17 +147,60 @@ pub async fn wine_create_bottle(
     let wine_bin = runtime::find_wine_bin().ok_or(WineError::SpawnFailed {
         message: "wine64 binary not found. Run ./scripts/setup-gptk.sh first.".into(),
     })?;
-    let status = tokio::process::Command::new(&wine_bin)
+    // Some Wine builds (notably Whisky's 7.7 with the 32on64 patch set)
+    // depend on tools that live next to the wine64 binary, plus PATH
+    // for fallbacks. macOS GUI processes can launch with a minimal
+    // PATH, so we explicitly prepend the wine binary's dir and add
+    // /opt/homebrew/bin for completeness.
+    let wine_dir = wine_bin
+        .parent()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let cur_path = std::env::var("PATH").unwrap_or_default();
+    let augmented_path = if wine_dir.is_empty() {
+        format!("/opt/homebrew/bin:/usr/local/bin:{}", cur_path)
+    } else {
+        format!("{}:/opt/homebrew/bin:/usr/local/bin:{}", wine_dir, cur_path)
+    };
+
+    eprintln!(
+        "[cellar] wineboot --init: wine={} prefix={}",
+        wine_bin.display(),
+        prefix.display()
+    );
+
+    let output = tokio::process::Command::new(&wine_bin)
         .arg("wineboot")
         .arg("--init")
         .env("WINEPREFIX", &prefix)
         .env("WINEARCH", "win64")
-        .status()
+        .env("PATH", &augmented_path)
+        .output()
         .await
-        .map_err(|e| WineError::SpawnFailed { message: e.to_string() })?;
-    if !status.success() {
+        .map_err(|e| WineError::SpawnFailed {
+            message: format!("could not spawn wine64 ({}): {}", wine_bin.display(), e),
+        })?;
+    let stderr_tail = String::from_utf8_lossy(&output.stderr)
+        .lines()
+        .rev()
+        .take(6)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join(" | ");
+    eprintln!(
+        "[cellar] wineboot --init exit={:?} stderr_tail={}",
+        output.status.code(),
+        stderr_tail
+    );
+    if !output.status.success() {
         return Err(WineError::SpawnFailed {
-            message: format!("wineboot --init exited with {:?}", status.code()),
+            message: format!(
+                "wineboot --init exited with {:?}. stderr tail: {}",
+                output.status.code(),
+                stderr_tail
+            ),
         });
     }
 

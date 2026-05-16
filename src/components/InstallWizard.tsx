@@ -489,9 +489,11 @@ function formatErr(err: unknown): string {
   const e = isCellarError(err);
   if (!e) return String(err);
   if (e.kind === 'wine_missing') return 'Wine binary not found. Run scripts/setup-gptk.sh.';
-  if (e.kind === 'not_found') return `File not found: ${e.path ?? '?'}`;
+  if (e.kind === 'home_not_found') return 'Could not resolve $HOME on this Mac. Sanity-check your user shell.';
+  if (e.kind === 'not_found') return `File not found: ${e.path ?? e.id ?? '?'}`;
   if (e.kind === 'bottle_error') return `Bottle error: ${e.message ?? 'unknown'}`;
   if (e.kind === 'spawn_failed') return `Spawn failed: ${e.message ?? 'unknown'}`;
+  if (e.kind === 'io_error') return `Filesystem error: ${e.message ?? 'unknown'}`;
   if (e.kind === 'already_exists') return `Bottle id collision (${e.id ?? '?'}). Try again.`;
-  return e.kind;
+  return `${e.kind}${e.message ? `: ${e.message}` : ''}`;
 }
