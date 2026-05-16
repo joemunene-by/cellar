@@ -271,7 +271,17 @@ pub async fn installer_run(
         inno_log_path
     );
 
+    // Wrap the installer in wine's virtual desktop. Wine's bare
+    // Cocoa driver leaves the installer attached to a "no driver"
+    // root window; FitGirl's ISDone progress UI then fails to spawn
+    // its child progress window (Inno error 1400, ERROR_INVALID_
+    // WINDOW_HANDLE). Running through `explorer /desktop=<name>,WxH`
+    // gives the installer a stable wine-managed desktop window to
+    // parent its dialogs to. This is the same workaround Whisky's
+    // own install path uses internally.
     let mut child = Command::new(&wine_bin)
+        .arg("explorer")
+        .arg("/desktop=cellar-installer,1280x720")
         .arg(&installer_exe)
         .arg(format!("/LOG={}", inno_log_path))
         .env("WINEPREFIX", &prefix)
