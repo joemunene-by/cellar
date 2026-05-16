@@ -121,6 +121,36 @@ pub fn installer_detect(path: String) -> Result<DetectResult, InstallerError> {
 /// order matters: when both `setup-multi2.exe` and `setup-language.exe`
 /// exist, the user wants the multi2 one because that's the wizard that
 /// drives the install; `setup-language.exe` is a sub-process.
+/// If `installer_exe` lives outside the bottle's drive_c tree, drop a
+/// symlink at `drive_c/cellar-sources/<parent-folder-name>` pointing
+/// at the installer's parent folder, and return the rewritten path
+/// that goes through that symlink. Wine then sees the installer on
+/// `C:\cellar-sources\<name>\<exe>` instead of `Z:\<host-path>\<exe>`.
+///
+/// Returns None when the installer is already inside drive_c or when
+/// the symlink creation fails (in which case the caller should fall
+/// back to the original path and let wine do its Z: translation).
+fn stage_installer_into_bottle(prefix: &Path, installer_exe: &str) -> Option<String> {
+    let src = PathBuf::from(installer_exe);
+    let drive_c = prefix.join("drive_c");
+    let drive_c_canon = drive_c.canonicalize().ok()?;
+    let src_canon = src.canonicalize().ok()?;
+    if src_canon.starts_with(&drive_c_canon) {
+        return None; // already inside the bottle
+    }
+    let src_parent = src.parent()?;
+    let folder_name = src_parent.file_name()?.to_string_lossy().to_string();
+    let staging_root = drive_c.join("cellar-sources");
+    std::fs::create_dir_all(&staging_root).ok()?;
+    let link_path = staging_root.join(&folder_name);
+    // Replace any existing link so re-runs always point at the latest source.
+    let _ = std::fs::remove_file(&link_path);
+    let _ = std::fs::remove_dir_all(&link_path);
+    std::os::unix::fs::symlink(src_parent, &link_path).ok()?;
+    let exe_name = src.file_name()?;
+    Some(link_path.join(exe_name).to_string_lossy().to_string())
+}
+
 fn find_setup_exe(root: &Path) -> Option<PathBuf> {
     let entries = std::fs::read_dir(root).ok()?;
     let mut hits: Vec<PathBuf> = entries
@@ -196,6 +226,14 @@ struct InstallerDone {
 /// `cellar://install`, emits `cellar://install-done` with the exit
 /// code when the installer process terminates. Resolves to the exit
 /// code so callers can `await` the full install.
+///
+/// If the installer's parent folder is OUTSIDE the bottle (i.e. wine
+/// would see it through the default `Z:` mapping for `/`), we stage
+/// it into `drive_c/cellar-sources/<basename>` via a symlink so the
+/// installer runs from `C:\cellar-sources\<basename>` instead. Inno
+/// Setup treats Z: as a network drive and refuses to spawn the
+/// 64-bit helper from there; the symlink dodge gives it a local
+/// fixed-drive path with zero extra copy.
 #[tauri::command]
 pub async fn installer_run(
     bottle_id: String,
@@ -213,6 +251,9 @@ pub async fn installer_run(
             message: "bottle prefix missing".into(),
         });
     }
+
+    let installer_exe = stage_installer_into_bottle(&prefix, &installer_exe)
+        .unwrap_or(installer_exe);
 
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::process::Command;
