@@ -209,6 +209,13 @@ pub async fn wine_create_bottle(
     // until the user explicitly wants D3D11 throughput.
     let _ = inject_dxvk_into(&prefix);
 
+    // Pre-create C:\Games so installers default to a writable path
+    // rather than Z:\Games. Wine's default Z: drive maps to the host
+    // filesystem root, which on macOS is read-only for unprivileged
+    // processes; many installers (notably FitGirl repacks) default to
+    // Z:\Games and silently fail with "Error 5: Access denied".
+    let _ = fs::create_dir_all(prefix.join("drive_c").join("Games"));
+
     let mut bottle = Bottle {
         id: id.clone(),
         name,
