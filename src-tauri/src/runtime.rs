@@ -130,7 +130,9 @@ pub async fn runtime_test_wine() -> Result<String, RuntimeError> {
 }
 
 /// Launch a game from the library by id. Spawns the wine process and
-/// returns immediately; the game runs detached.
+/// returns immediately; the game runs detached. A background tokio
+/// task records the play duration into the library when the child
+/// exits, so the Library card's total_play_ms is accurate.
 #[tauri::command]
 pub async fn runtime_launch(
     game_id: String,
@@ -176,7 +178,28 @@ pub async fn runtime_launch(
         .stderr(Stdio::null())
         .stdin(Stdio::null());
 
-    cmd.spawn()
+    // Mark last-played BEFORE spawn so the Library shows the launch
+    // attempt even if the user kills it 1 second in.
+    let _ = library.mark_played_now(&game_id);
+
+    let mut child = cmd
+        .spawn()
         .map_err(|e| RuntimeError::SpawnFailed { message: e.to_string() })?;
+
+    // Snapshot the Library handle for the background waiter task.
+    // State<'_, Library> can not cross tasks but Library is just an
+    // Arc-equivalent under the hood (Tauri manages it via Arc), so
+    // we re-resolve the path-based singleton in the waiter via the
+    // standalone Library::load() that reads the same on-disk file.
+    let game_id_waiter = game_id.clone();
+    let started_at = std::time::Instant::now();
+    tokio::spawn(async move {
+        let _ = child.wait().await;
+        let played_ms = started_at.elapsed().as_millis();
+        // Re-open the library so we do not need the Tauri State here.
+        let lib = Library::load();
+        let _ = lib.add_play_time(&game_id_waiter, played_ms);
+    });
+
     Ok(())
 }

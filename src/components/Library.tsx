@@ -1,20 +1,23 @@
 /**
- * Library tab: card grid of installed games. Click a card to launch
- * the game in its bottle. Remove via the per-card menu.
+ * Library tab: card grid of installed games plus a slide-out settings
+ * drawer per game.
  *
- * Phase 1 keeps this minimal: name + bottle id + launch button. Future
- * phases will add cover art, last played, total play time, per-game
- * settings drawer.
+ *   - Click Play to launch via wine.
+ *   - Click Settings on a card to slide in the drawer: toggles for
+ *     DXVK / ESYNC / MSYNC, custom env vars, extra launch args.
+ *   - Last-played and total play time are stamped by runtime_launch
+ *     and a background tokio task that waits for the child exit.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { library, runtime, isCellarError } from '../lib/invoke';
-import type { Game } from '../lib/invoke';
+import type { Game, GameSettings } from '../lib/invoke';
 
 export default function Library() {
   const [games, setGames] = useState<Game[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Game | null>(null);
 
   const reload = useCallback(async () => {
     setError(null);
@@ -34,6 +37,9 @@ export default function Library() {
     setError(null);
     try {
       await runtime.launch(game.id);
+      // Re-poll the library a moment later to pick up the last_played
+      // bump from runtime_launch's mark_played_now call.
+      setTimeout(reload, 800);
     } catch (err) {
       setError(formatErr(err));
     } finally {
@@ -81,8 +87,9 @@ export default function Library() {
               <div className="game-card-title">{g.name}</div>
               <div className="game-card-meta">
                 <span title={g.bottle_id}>bottle {g.bottle_id.slice(0, 8)}</span>
+                <span>{prettyDuration(g.total_play_ms)} played</span>
                 {g.last_played_ms && (
-                  <span>last played {new Date(g.last_played_ms).toLocaleDateString()}</span>
+                  <span>last {prettyAgo(g.last_played_ms)}</span>
                 )}
               </div>
               <div className="game-card-exe" title={g.launch_exe}>
@@ -97,6 +104,9 @@ export default function Library() {
                 >
                   {busyId === g.id ? 'Launching...' : 'Play'}
                 </button>
+                <button className="btn" onClick={() => setEditing(g)} type="button">
+                  Settings
+                </button>
                 <button className="btn btn-ghost" onClick={() => remove(g)} type="button">
                   Remove
                 </button>
@@ -105,8 +115,179 @@ export default function Library() {
           ))}
         </ul>
       )}
+
+      {editing && (
+        <SettingsDrawer
+          game={editing}
+          onClose={() => setEditing(null)}
+          onSaved={async () => {
+            setEditing(null);
+            await reload();
+          }}
+        />
+      )}
     </div>
   );
+}
+
+function SettingsDrawer({
+  game,
+  onClose,
+  onSaved,
+}: {
+  game: Game;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [settings, setSettings] = useState<GameSettings>(game.settings);
+  const [envText, setEnvText] = useState(envToText(game.settings.env));
+  const [argsText, setArgsText] = useState(game.settings.launch_args.join('\n'));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const next: GameSettings = {
+        ...settings,
+        env: parseEnvText(envText),
+        launch_args: argsText.split('\n').map((s) => s.trim()).filter(Boolean),
+      };
+      await library.updateSettings(game.id, next);
+      onSaved();
+    } catch (err) {
+      setError(formatErr(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="drawer-backdrop" onClick={onClose}>
+      <div className="drawer" onClick={(e) => e.stopPropagation()}>
+        <header className="drawer-header">
+          <h3>{game.name}</h3>
+          <button className="pane-btn" onClick={onClose} type="button" title="Close">
+            ✕
+          </button>
+        </header>
+
+        {error && <div className="error-box">{error}</div>}
+
+        <section className="drawer-section">
+          <h4>Runtime toggles</h4>
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              checked={settings.dxvk}
+              onChange={(e) => setSettings({ ...settings, dxvk: e.target.checked })}
+            />
+            <span>DXVK (D3D11 / D3D10 / DXGI native-DLL override)</span>
+          </label>
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              checked={settings.esync}
+              onChange={(e) => setSettings({ ...settings, esync: e.target.checked })}
+            />
+            <span>ESYNC (eventfd-style multi-thread sync)</span>
+          </label>
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              checked={settings.msync}
+              onChange={(e) => setSettings({ ...settings, msync: e.target.checked })}
+            />
+            <span>MSYNC (Apple Silicon fast sync primitive)</span>
+          </label>
+        </section>
+
+        <section className="drawer-section">
+          <h4>Env vars</h4>
+          <p className="muted">One per line, `KEY=value`. Example: `DXVK_HUD=fps`.</p>
+          <textarea
+            className="input"
+            rows={4}
+            value={envText}
+            onChange={(e) => setEnvText(e.target.value)}
+            placeholder="DXVK_HUD=fps&#10;__GL_SYNC_TO_VBLANK=0"
+          />
+        </section>
+
+        <section className="drawer-section">
+          <h4>Extra launch args</h4>
+          <p className="muted">One per line. Passed after the .exe.</p>
+          <textarea
+            className="input"
+            rows={3}
+            value={argsText}
+            onChange={(e) => setArgsText(e.target.value)}
+            placeholder="-nointro&#10;-windowed"
+          />
+        </section>
+
+        <section className="drawer-section">
+          <h4>Paths</h4>
+          <table className="kv">
+            <tbody>
+              <tr><td>Install dir</td><td><code>{game.install_dir}</code></td></tr>
+              <tr><td>Launch .exe</td><td><code>{game.launch_exe}</code></td></tr>
+              <tr><td>Bottle</td><td><code>{game.bottle_id}</code></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <div className="drawer-actions">
+          <button className="btn btn-primary" onClick={save} disabled={saving} type="button">
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+          <button className="btn btn-ghost" onClick={onClose} type="button">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function envToText(env: Record<string, string>): string {
+  return Object.entries(env)
+    .map(([k, v]) => `${k}=${v}`)
+    .join('\n');
+}
+
+function parseEnvText(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of text.split('\n')) {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) continue;
+    const eq = t.indexOf('=');
+    if (eq <= 0) continue;
+    out[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
+  }
+  return out;
+}
+
+function prettyDuration(ms: number): string {
+  if (ms < 60_000) return '<1m';
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remM = minutes % 60;
+  if (hours < 24) return remM ? `${hours}h ${remM}m` : `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h`;
+}
+
+function prettyAgo(ms: number): string {
+  const elapsed = Date.now() - ms;
+  if (elapsed < 60_000) return 'just now';
+  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`;
+  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
+  const days = Math.floor(elapsed / 86_400_000);
+  if (days < 30) return `${days}d ago`;
+  return new Date(ms).toLocaleDateString();
 }
 
 function formatErr(err: unknown): string {
@@ -116,5 +297,6 @@ function formatErr(err: unknown): string {
   if (e.kind === 'game_not_found') return `Game not found (id: ${e.id ?? '?'})`;
   if (e.kind === 'bottle_error') return `Bottle error: ${e.message ?? 'unknown'}`;
   if (e.kind === 'spawn_failed') return `Spawn failed: ${e.message ?? 'unknown'}`;
-  return e.kind;
+  if (e.kind === 'not_found') return `Not found: ${e.id ?? '?'}`;
+  return `${e.kind}${e.message ? `: ${e.message}` : ''}`;
 }

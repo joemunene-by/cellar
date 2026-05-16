@@ -135,6 +135,41 @@ impl Library {
         drop(f);
         self.save()
     }
+
+    /// Stamp last_played_ms to "right now". Called when runtime_launch
+    /// fires the wine subprocess so the Library card shows accurate
+    /// recency even if the user kills the game before it exits cleanly.
+    pub fn mark_played_now(&self, id: &str) -> Result<(), LibraryError> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let mut f = self.file.lock().unwrap();
+        let game = f
+            .games
+            .iter_mut()
+            .find(|g| g.id == id)
+            .ok_or_else(|| LibraryError::NotFound { id: id.to_string() })?;
+        game.last_played_ms = Some(now);
+        drop(f);
+        self.save()
+    }
+
+    /// Add to total_play_ms when a game process exits. The Rust side
+    /// of runtime_launch spawns a tokio task that waits on the wine
+    /// child and calls this; survives the user closing the cellar UI
+    /// because tokio tasks live as long as the cellar process does.
+    pub fn add_play_time(&self, id: &str, ms: u128) -> Result<(), LibraryError> {
+        let mut f = self.file.lock().unwrap();
+        let game = f
+            .games
+            .iter_mut()
+            .find(|g| g.id == id)
+            .ok_or_else(|| LibraryError::NotFound { id: id.to_string() })?;
+        game.total_play_ms = game.total_play_ms.saturating_add(ms);
+        drop(f);
+        self.save()
+    }
 }
 
 // ---------------------------------------------------------------
