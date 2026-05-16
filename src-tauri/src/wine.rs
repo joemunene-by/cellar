@@ -13,8 +13,10 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
 
 use crate::runtime;
 
@@ -344,6 +346,146 @@ fn is_uninteresting_dir(name: &str) -> bool {
             | "documents and settings"
             | "system volume information"
     )
+}
+
+/// Locate the winetricks script. Order:
+///   1. `CELLAR_WINETRICKS` env var
+///   2. Whisky's bundled copy
+///   3. Homebrew install (`/opt/homebrew/bin/winetricks`)
+fn find_winetricks() -> Option<PathBuf> {
+    if let Ok(p) = std::env::var("CELLAR_WINETRICKS") {
+        let path = PathBuf::from(p);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    let whisky = PathBuf::from(format!(
+        "{}/Library/Application Support/com.isaacmarovitz.Whisky/Libraries/winetricks",
+        home
+    ));
+    if whisky.exists() {
+        return Some(whisky);
+    }
+    let brewed = PathBuf::from("/opt/homebrew/bin/winetricks");
+    if brewed.exists() {
+        return Some(brewed);
+    }
+    None
+}
+
+#[derive(Clone, Serialize)]
+struct WinetricksLine {
+    bottle_id: String,
+    verb: String,
+    line: String,
+    stream: String,
+}
+
+#[derive(Clone, Serialize)]
+struct WinetricksDone {
+    bottle_id: String,
+    verb: String,
+    exit_code: i32,
+}
+
+/// Run winetricks against a bottle to install a runtime / font / config
+/// "verb" (e.g. `vcrun2022`, `corefonts`, `dotnet48`). Streams stdout +
+/// stderr as `cellar://winetricks` events tagged with the bottle id and
+/// verb; emits a final `cellar://winetricks-done` with the exit code.
+///
+/// Runs with `--unattended` so prompt-driven verbs do not hang waiting
+/// for a GUI click. Disables the winetricks self-version-check so an
+/// offline machine does not stall on the http probe.
+#[tauri::command]
+pub async fn wine_run_winetricks(
+    id: String,
+    verb: String,
+    app: AppHandle,
+) -> Result<i32, WineError> {
+    let prefix = bottle_prefix_path(&id)?;
+    if !prefix.exists() {
+        return Err(WineError::NotFound { id });
+    }
+    let wine_bin = runtime::find_wine_bin().ok_or(WineError::SpawnFailed {
+        message: "wine64 not found (run setup-gptk.sh first)".into(),
+    })?;
+    let winetricks = find_winetricks().ok_or(WineError::SpawnFailed {
+        message: "winetricks not found. Install Whisky or `brew install winetricks`.".into(),
+    })?;
+
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    use tokio::process::Command;
+
+    let mut child = Command::new("bash")
+        .arg(&winetricks)
+        .arg("--unattended")
+        .arg(&verb)
+        .env("WINEPREFIX", &prefix)
+        .env("WINE", &wine_bin)
+        .env("WINETRICKS_LATEST_VERSION_CHECK", "disabled")
+        // Most game installers + redistributables want the legacy
+        // large-address-aware flag set so 32-bit allocations do not
+        // collide at 2 GB.
+        .env("WINE_LARGE_ADDRESS_AWARE", "1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdin(Stdio::null())
+        .spawn()
+        .map_err(|e| WineError::SpawnFailed { message: e.to_string() })?;
+
+    let stdout = child.stdout.take().expect("piped");
+    let stderr = child.stderr.take().expect("piped");
+
+    let id_out = id.clone();
+    let verb_out = verb.clone();
+    let app_o = app.clone();
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stdout).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app_o.emit(
+                "cellar://winetricks",
+                WinetricksLine {
+                    bottle_id: id_out.clone(),
+                    verb: verb_out.clone(),
+                    line,
+                    stream: "stdout".into(),
+                },
+            );
+        }
+    });
+    let id_err = id.clone();
+    let verb_err = verb.clone();
+    let app_e = app.clone();
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app_e.emit(
+                "cellar://winetricks",
+                WinetricksLine {
+                    bottle_id: id_err.clone(),
+                    verb: verb_err.clone(),
+                    line,
+                    stream: "stderr".into(),
+                },
+            );
+        }
+    });
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| WineError::SpawnFailed { message: e.to_string() })?;
+    let code = status.code().unwrap_or(-1);
+    let _ = app.emit(
+        "cellar://winetricks-done",
+        WinetricksDone {
+            bottle_id: id,
+            verb,
+            exit_code: code,
+        },
+    );
+    Ok(code)
 }
 
 /// Delete a bottle. Removes the prefix and metadata; cannot be undone.

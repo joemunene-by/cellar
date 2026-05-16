@@ -583,6 +583,57 @@ code {
   white-space: nowrap;
 }
 
+.winetricks-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.select {
+  background: #0a0a0e;
+  border: 1px solid #2c2c38;
+  color: #ddd;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+.winetricks-panel {
+  margin-top: 14px;
+  background: #07070a;
+  border: 1px solid #22222a;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.winetricks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #14141a;
+  border-bottom: 1px solid #22222a;
+  font-size: 11px;
+  color: #aaa;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.winetricks-log {
+  margin: 0;
+  padding: 8px 12px;
+  max-height: 280px;
+  overflow-y: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: #bcd;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ------------------------------------------------------------
  * Scrollbars
  * ------------------------------------------------------------ */

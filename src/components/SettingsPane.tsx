@@ -7,9 +7,18 @@
  * one (warning: this wipes the prefix directory).
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { listen } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { runtime, wine, isCellarError } from '../lib/invoke';
 import type { Bottle, RuntimeStatus } from '../lib/invoke';
+
+const WINETRICKS_VERBS: { verb: string; label: string; minutes: string }[] = [
+  { verb: 'vcrun2022', label: 'Visual C++ 2015-2022', minutes: '~2-4 min' },
+  { verb: 'vcrun2019', label: 'Visual C++ 2015-2019', minutes: '~2-4 min' },
+  { verb: 'dotnet48', label: '.NET Framework 4.8', minutes: '~5-10 min' },
+  { verb: 'corefonts', label: 'Core fonts (Tahoma, Arial, ...)', minutes: '~1 min' },
+];
 
 export default function SettingsPane() {
   const [status, setStatus] = useState<RuntimeStatus | null>(null);
@@ -74,6 +83,63 @@ export default function SettingsPane() {
       setError(formatErr(err));
     } finally {
       setBusyId(null);
+    }
+  };
+
+  // Winetricks UI state. One operation at a time, shared log panel.
+  const [trickVerb, setTrickVerb] = useState<Record<string, string>>({});
+  const [trickRunning, setTrickRunning] = useState<{ bottleId: string; verb: string } | null>(null);
+  const [trickLog, setTrickLog] = useState<string[]>([]);
+  const [trickResult, setTrickResult] = useState<{ verb: string; exit_code: number } | null>(null);
+  const trickLogRef = useRef<HTMLPreElement | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    let unlist: UnlistenFn[] = [];
+    (async () => {
+      const u1 = await listen<{ bottle_id: string; verb: string; line: string; stream: string }>(
+        'cellar://winetricks',
+        (e) => {
+          setTrickLog((l) => [
+            ...l,
+            `${e.payload.stream === 'stderr' ? '[err] ' : ''}${e.payload.line}`,
+          ]);
+        },
+      );
+      const u2 = await listen<{ bottle_id: string; verb: string; exit_code: number }>(
+        'cellar://winetricks-done',
+        (e) => {
+          setTrickResult({ verb: e.payload.verb, exit_code: e.payload.exit_code });
+          setTrickRunning(null);
+        },
+      );
+      if (!mounted) {
+        u1();
+        u2();
+        return;
+      }
+      unlist = [u1, u2];
+    })();
+    return () => {
+      mounted = false;
+      unlist.forEach((u) => u());
+    };
+  }, []);
+
+  useEffect(() => {
+    if (trickLogRef.current) trickLogRef.current.scrollTop = trickLogRef.current.scrollHeight;
+  }, [trickLog]);
+
+  const runVerb = async (b: Bottle) => {
+    const verb = trickVerb[b.id] ?? WINETRICKS_VERBS[0].verb;
+    setTrickLog([`$ winetricks --unattended ${verb}`]);
+    setTrickResult(null);
+    setTrickRunning({ bottleId: b.id, verb });
+    try {
+      await wine.runWinetricks(b.id, verb);
+    } catch (err) {
+      setTrickRunning(null);
+      setError(formatErr(err));
     }
   };
 
@@ -167,9 +233,60 @@ export default function SettingsPane() {
                     </button>
                   </div>
                 </div>
+                <div className="winetricks-row">
+                  <select
+                    className="select"
+                    value={trickVerb[b.id] ?? WINETRICKS_VERBS[0].verb}
+                    onChange={(e) => setTrickVerb((s) => ({ ...s, [b.id]: e.target.value }))}
+                    disabled={!!trickRunning}
+                  >
+                    {WINETRICKS_VERBS.map((v) => (
+                      <option key={v.verb} value={v.verb}>
+                        {v.label} ({v.minutes})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="btn"
+                    onClick={() => runVerb(b)}
+                    disabled={!!trickRunning}
+                    type="button"
+                  >
+                    {trickRunning?.bottleId === b.id
+                      ? `Installing ${trickRunning.verb}...`
+                      : 'Install runtime'}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
+        )}
+
+        {(trickRunning || trickLog.length > 0) && (
+          <div className="winetricks-panel">
+            <div className="winetricks-header">
+              <span>
+                {trickRunning
+                  ? `Running winetricks ${trickRunning.verb} on bottle ${trickRunning.bottleId.slice(0, 8)}`
+                  : `Last run: ${trickResult?.verb ?? '?'} exited ${trickResult?.exit_code ?? '?'}`}
+              </span>
+              {!trickRunning && (
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    setTrickLog([]);
+                    setTrickResult(null);
+                  }}
+                  type="button"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <pre className="winetricks-log" ref={trickLogRef}>
+              {trickLog.join('\n') || '...'}
+            </pre>
+          </div>
         )}
       </section>
 

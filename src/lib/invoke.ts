@@ -74,6 +74,8 @@ export const wine = {
   bottleDxvkStatus: (id: string) => invoke<boolean>('wine_bottle_dxvk_status', { id }),
   scanBottleExes: (id: string, maxCount = 20) =>
     invoke<ExeCandidate[]>('wine_scan_bottle_exes', { id, max_count: maxCount }),
+  runWinetricks: (id: string, verb: string) =>
+    invoke<number>('wine_run_winetricks', { id, verb }),
 };
 
 export const library = {
