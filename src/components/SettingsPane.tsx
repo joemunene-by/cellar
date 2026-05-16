@@ -14,6 +14,8 @@ import type { Bottle, RuntimeStatus } from '../lib/invoke';
 export default function SettingsPane() {
   const [status, setStatus] = useState<RuntimeStatus | null>(null);
   const [bottles, setBottles] = useState<Bottle[]>([]);
+  const [dxvkState, setDxvkState] = useState<Record<string, boolean>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [wineTest, setWineTest] = useState<{ ok: boolean; output: string } | null>(null);
   const [testingWine, setTestingWine] = useState(false);
@@ -24,6 +26,10 @@ export default function SettingsPane() {
       const [s, bs] = await Promise.all([runtime.status(), wine.listBottles()]);
       setStatus(s);
       setBottles(bs);
+      const probes = await Promise.all(
+        bs.map(async (b) => [b.id, await wine.bottleDxvkStatus(b.id).catch(() => false)] as const),
+      );
+      setDxvkState(Object.fromEntries(probes));
     } catch (err) {
       setError(formatErr(err));
     }
@@ -55,6 +61,19 @@ export default function SettingsPane() {
       await reload();
     } catch (err) {
       setError(formatErr(err));
+    }
+  };
+
+  const injectDxvk = async (b: Bottle) => {
+    setBusyId(b.id);
+    try {
+      await wine.injectDxvk(b.id);
+      const ok = await wine.bottleDxvkStatus(b.id);
+      setDxvkState((s) => ({ ...s, [b.id]: ok }));
+    } catch (err) {
+      setError(formatErr(err));
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -130,10 +149,23 @@ export default function SettingsPane() {
                     <div className="bottle-meta">
                       {b.windows_version}, created {new Date(b.created_ms).toLocaleString()} ({b.id.slice(0, 8)})
                     </div>
+                    <div className="bottle-meta">
+                      DXVK: {dxvkState[b.id] ? <span className="ok">injected</span> : <span className="bad">missing</span>}
+                    </div>
                   </div>
-                  <button className="btn btn-ghost" onClick={() => removeBottle(b)} type="button">
-                    Delete
-                  </button>
+                  <div className="bottle-actions">
+                    <button
+                      className="btn"
+                      onClick={() => injectDxvk(b)}
+                      disabled={busyId === b.id}
+                      type="button"
+                    >
+                      {busyId === b.id ? 'Injecting...' : dxvkState[b.id] ? 'Re-inject DXVK' : 'Inject DXVK'}
+                    </button>
+                    <button className="btn btn-ghost" onClick={() => removeBottle(b)} type="button">
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </li>
             ))}

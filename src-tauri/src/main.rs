@@ -23,6 +23,8 @@ fn main() {
             wine::wine_create_bottle,
             wine::wine_list_bottles,
             wine::wine_remove_bottle,
+            wine::wine_inject_dxvk,
+            wine::wine_bottle_dxvk_status,
             library::library_list,
             library::library_add,
             library::library_remove,

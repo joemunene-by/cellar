@@ -62,6 +62,8 @@ export const wine = {
     invoke<Bottle>('wine_create_bottle', { name, windows_version: windowsVersion }),
   listBottles: () => invoke<Bottle[]>('wine_list_bottles'),
   removeBottle: (id: string) => invoke<void>('wine_remove_bottle', { id }),
+  injectDxvk: (id: string) => invoke<void>('wine_inject_dxvk', { id }),
+  bottleDxvkStatus: (id: string) => invoke<boolean>('wine_bottle_dxvk_status', { id }),
 };
 
 export const library = {

@@ -12,11 +12,17 @@
 //! before the first installer runs.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::runtime;
+
+/// DXVK DLL names cellar copies into fresh bottles. DXVK 2.x dropped
+/// the D3D9 / D3D10_1 redirectors so the list is tight (D3D10, D3D11,
+/// DXGI). Older games that use D3D9 fall back to wine's builtin
+/// WineD3D which is slower but functional.
+const DXVK_DLLS: [&str; 3] = ["d3d10core.dll", "d3d11.dll", "dxgi.dll"];
 
 const BOTTLES_DIR: &str = "bottles";
 
@@ -71,6 +77,56 @@ pub fn bottle_prefix_path(id: &str) -> Result<PathBuf, WineError> {
     Ok(bottle_dir(id)?.join("prefix"))
 }
 
+/// Locate a DXVK DLL pack on disk. Order:
+///   1. `CELLAR_DXVK_DIR` env var (manual override; must have x64/ + x32/)
+///   2. Whisky's bundled DXVK 2.x set under its app support dir
+///
+/// Returns None when no DXVK source is found; callers should treat
+/// that as "best-effort skip", not a hard error, so fresh bottles
+/// still come up usable for WineD3D-compatible games.
+fn find_dxvk_source() -> Option<PathBuf> {
+    if let Ok(p) = std::env::var("CELLAR_DXVK_DIR") {
+        let path = PathBuf::from(p);
+        if path.join("x64").join("d3d11.dll").exists() {
+            return Some(path);
+        }
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    let whisky = PathBuf::from(format!(
+        "{}/Library/Application Support/com.isaacmarovitz.Whisky/Libraries/DXVK",
+        home
+    ));
+    if whisky.join("x64").join("d3d11.dll").exists() {
+        return Some(whisky);
+    }
+    None
+}
+
+/// Copy the DXVK x64 / x32 DLL set into the bottle's `system32` and
+/// `syswow64`. Idempotent: re-running just overwrites the same files.
+pub fn inject_dxvk_into(prefix: &Path) -> Result<(), WineError> {
+    let src = find_dxvk_source().ok_or_else(|| WineError::IoError {
+        message: "DXVK source not found. Install Whisky or set CELLAR_DXVK_DIR.".into(),
+    })?;
+
+    let system32 = prefix.join("drive_c").join("windows").join("system32");
+    let syswow64 = prefix.join("drive_c").join("windows").join("syswow64");
+    fs::create_dir_all(&system32)?;
+    fs::create_dir_all(&syswow64)?;
+
+    for dll in DXVK_DLLS {
+        let x64_src = src.join("x64").join(dll);
+        let x32_src = src.join("x32").join(dll);
+        if x64_src.exists() {
+            fs::copy(&x64_src, system32.join(dll))?;
+        }
+        if x32_src.exists() {
+            fs::copy(&x32_src, syswow64.join(dll))?;
+        }
+    }
+    Ok(())
+}
+
 /// Create a new bottle and initialise its Wine prefix.
 #[tauri::command]
 pub async fn wine_create_bottle(
@@ -102,6 +158,11 @@ pub async fn wine_create_bottle(
             message: format!("wineboot --init exited with {:?}", status.code()),
         });
     }
+
+    // Best-effort DXVK injection. Failure here does not abort bottle
+    // creation: many games (and most installers) run fine on WineD3D
+    // until the user explicitly wants D3D11 throughput.
+    let _ = inject_dxvk_into(&prefix);
 
     let mut bottle = Bottle {
         id: id.clone(),
@@ -147,6 +208,31 @@ pub fn wine_list_bottles() -> Result<Vec<Bottle>, WineError> {
     }
     out.sort_by(|a, b| b.created_ms.cmp(&a.created_ms));
     Ok(out)
+}
+
+/// Manually re-inject the DXVK DLL pack into a bottle. Useful when
+/// the user installs Whisky after creating a bottle, or when a game's
+/// installer overwrites the DLLs with stub versions.
+#[tauri::command]
+pub fn wine_inject_dxvk(id: String) -> Result<(), WineError> {
+    let prefix = bottle_prefix_path(&id)?;
+    if !prefix.exists() {
+        return Err(WineError::NotFound { id });
+    }
+    inject_dxvk_into(&prefix)
+}
+
+/// Report whether a bottle has the cellar DXVK DLL set in place. Used
+/// by the Settings UI to show a per-bottle "DXVK installed" indicator.
+#[tauri::command]
+pub fn wine_bottle_dxvk_status(id: String) -> Result<bool, WineError> {
+    let prefix = bottle_prefix_path(&id)?;
+    let probe = prefix
+        .join("drive_c")
+        .join("windows")
+        .join("system32")
+        .join("d3d11.dll");
+    Ok(probe.exists())
 }
 
 /// Delete a bottle. Removes the prefix and metadata; cannot be undone.

@@ -160,7 +160,12 @@ pub async fn runtime_launch(
         cmd.arg(arg);
     }
     cmd.env("WINEPREFIX", &prefix);
-    cmd.env("DXVK_ENABLE", if game.settings.dxvk { "1" } else { "0" });
+    if game.settings.dxvk {
+        // Tell wine to prefer the native DXVK DLLs over its own builtins
+        // for the three D3D11 / DXGI redirectors. Without this, even
+        // a DLL-injected bottle still loads the WineD3D builtins.
+        cmd.env("WINEDLLOVERRIDES", "d3d11,d3d10core,dxgi=n");
+    }
     cmd.env("WINEESYNC", if game.settings.esync { "1" } else { "0" });
     cmd.env("WINEMSYNC", if game.settings.msync { "1" } else { "0" });
     for (k, v) in &game.settings.env {
