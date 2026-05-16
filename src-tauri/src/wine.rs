@@ -392,9 +392,14 @@ fn is_uninteresting_dir(name: &str) -> bool {
 }
 
 /// Locate the winetricks script. Order:
-///   1. `CELLAR_WINETRICKS` env var
-///   2. Whisky's bundled copy
-///   3. Homebrew install (`/opt/homebrew/bin/winetricks`)
+///   1. `CELLAR_WINETRICKS` env var (manual override)
+///   2. `~/.cellar/bin/winetricks` (cellar's own fresh copy)
+///   3. Whisky's bundled copy
+///   4. Homebrew install (`/opt/homebrew/bin/winetricks`)
+///
+/// We prefer cellar's own copy because Whisky pins to whatever
+/// version it shipped with, and winetricks SHA tables drift out of
+/// date within weeks of Microsoft pushing a new VC++ redist.
 fn find_winetricks() -> Option<PathBuf> {
     if let Ok(p) = std::env::var("CELLAR_WINETRICKS") {
         let path = PathBuf::from(p);
@@ -403,6 +408,10 @@ fn find_winetricks() -> Option<PathBuf> {
         }
     }
     let home = std::env::var("HOME").unwrap_or_default();
+    let cellar_owned = PathBuf::from(format!("{}/.cellar/bin/winetricks", home));
+    if cellar_owned.exists() {
+        return Some(cellar_owned);
+    }
     let whisky = PathBuf::from(format!(
         "{}/Library/Application Support/com.isaacmarovitz.Whisky/Libraries/winetricks",
         home
@@ -415,6 +424,23 @@ fn find_winetricks() -> Option<PathBuf> {
         return Some(brewed);
     }
     None
+}
+
+/// Verbs whose payload is served by Microsoft over HTTPS. For these
+/// we set `WINETRICKS_FORCE=1` to skip the bundled SHA check, because
+/// (a) Microsoft routinely updates the redists faster than winetricks
+/// can ship a new known-good SHA, and (b) HTTPS to microsoft.com /
+/// download.visualstudio.microsoft.com is the actual integrity check
+/// we are relying on anyway. SHA-skip is NOT applied to third-party
+/// verbs (corefonts pulls from SourceForge, etc.) where the SHA is
+/// the only thing keeping us honest.
+fn verb_skips_sha_check(verb: &str) -> bool {
+    verb.starts_with("vcrun")
+        || verb.starts_with("dotnet")
+        || verb.starts_with("d3dx")
+        || verb == "ucrtbase2019"
+        || verb == "dotnetdesktop6"
+        || verb == "dotnetdesktop7"
 }
 
 #[derive(Clone, Serialize)]
@@ -460,17 +486,32 @@ pub async fn wine_run_winetricks(
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::process::Command;
 
-    let mut child = Command::new("bash")
-        .arg(&winetricks)
+    let mut cmd = Command::new("bash");
+    cmd.arg(&winetricks)
         .arg("--unattended")
         .arg(&verb)
         .env("WINEPREFIX", &prefix)
         .env("WINE", &wine_bin)
         .env("WINETRICKS_LATEST_VERSION_CHECK", "disabled")
-        // Most game installers + redistributables want the legacy
-        // large-address-aware flag set so 32-bit allocations do not
-        // collide at 2 GB.
-        .env("WINE_LARGE_ADDRESS_AWARE", "1")
+        // Legacy large-address-aware flag so 32-bit allocations do
+        // not collide at the 2 GB boundary inside the redist installer.
+        .env("WINE_LARGE_ADDRESS_AWARE", "1");
+
+    if verb_skips_sha_check(&verb) {
+        cmd.env("WINETRICKS_FORCE", "1");
+        eprintln!(
+            "[cellar] winetricks {}: WINETRICKS_FORCE=1 (Microsoft download, trusting HTTPS)",
+            verb
+        );
+    }
+    eprintln!(
+        "[cellar] winetricks: script={} verb={} prefix={}",
+        winetricks.display(),
+        verb,
+        prefix.display()
+    );
+
+    let mut child = cmd
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .stdin(Stdio::null())

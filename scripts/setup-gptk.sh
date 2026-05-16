@@ -124,6 +124,24 @@ fi
 log "wine64 ready at $wine_bin"
 log "version: $("$wine_bin" --version 2>/dev/null || echo unknown)"
 
+# ---------- 7b. fresh winetricks ----------
+#
+# Whisky bundles winetricks 20250102, which is already months behind
+# Microsoft's VC++ redist SHA list. Drop the upstream master copy at
+# ~/.cellar/bin/winetricks; cellar's find_winetricks prefers this
+# location over Whisky's bundled copy.
+
+mkdir -p "$HOME/.cellar/bin"
+if [ ! -x "$HOME/.cellar/bin/winetricks" ] || [ -n "${CELLAR_REFRESH_WINETRICKS:-}" ]; then
+  log "fetching fresh winetricks from upstream master."
+  curl -fsSL -o "$HOME/.cellar/bin/winetricks" \
+    https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks
+  chmod +x "$HOME/.cellar/bin/winetricks"
+  log "winetricks: $("$HOME/.cellar/bin/winetricks" --version 2>&1 | head -1)"
+else
+  log "cellar's winetricks already present at $HOME/.cellar/bin/winetricks (set CELLAR_REFRESH_WINETRICKS=1 to bump)."
+fi
+
 # ---------- 8. Done ----------
 
 cat <<'EOF'
