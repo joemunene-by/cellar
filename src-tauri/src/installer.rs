@@ -217,8 +217,22 @@ pub async fn installer_run(
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::process::Command;
 
+    // Always pass /LOG to Inno Setup installers (most FitGirl / DODI /
+    // generic repacks use Inno). The flag is ignored by non-Inno
+    // installers so it is safe to always include. Path is C: relative
+    // to the bottle, which is always writable.
+    let inno_log_path = "C:\\cellar-install.log";
+    eprintln!(
+        "[cellar] installer_run: wine={} prefix={} exe={} log={}",
+        wine_bin.display(),
+        prefix.display(),
+        installer_exe,
+        inno_log_path
+    );
+
     let mut child = Command::new(&wine_bin)
         .arg(&installer_exe)
+        .arg(format!("/LOG={}", inno_log_path))
         .env("WINEPREFIX", &prefix)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
