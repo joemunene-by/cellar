@@ -443,6 +443,16 @@ code {
   flex: 1;
 }
 
+.bottle-progress {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #1c1f2a;
+  border: 1px solid #2a3142;
+  border-radius: 5px;
+  font-size: 12px;
+  color: #b8c4dc;
+}
+
 .log {
   background: #07070a;
   border: 1px solid #22222a;

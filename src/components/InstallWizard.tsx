@@ -32,6 +32,7 @@ export default function InstallWizard() {
   const [bottles, setBottles] = useState<Bottle[]>([]);
   const [selectedBottle, setSelectedBottle] = useState<string | null>(null);
   const [newBottleName, setNewBottleName] = useState('');
+  const [creatingBottle, setCreatingBottle] = useState(false);
 
   // Step 4: running installer
   const [log, setLog] = useState<string[]>([]);
@@ -169,7 +170,9 @@ export default function InstallWizard() {
   }, []);
 
   const createBottle = async () => {
-    if (!newBottleName.trim()) return;
+    if (!newBottleName.trim() || creatingBottle) return;
+    setCreatingBottle(true);
+    setError(null);
     try {
       const b = await wine.createBottle(newBottleName.trim(), 'win10');
       setBottles([b, ...bottles]);
@@ -177,6 +180,8 @@ export default function InstallWizard() {
       setNewBottleName('');
     } catch (err) {
       setError(formatErr(err));
+    } finally {
+      setCreatingBottle(false);
     }
   };
 
@@ -326,11 +331,23 @@ export default function InstallWizard() {
               placeholder="New bottle name (e.g. cyberpunk-bottle)"
               value={newBottleName}
               onChange={(e) => setNewBottleName(e.target.value)}
+              disabled={creatingBottle}
             />
-            <button className="btn" onClick={createBottle} type="button" disabled={!newBottleName.trim()}>
-              Create
+            <button
+              className="btn"
+              onClick={createBottle}
+              type="button"
+              disabled={!newBottleName.trim() || creatingBottle}
+            >
+              {creatingBottle ? 'Creating...' : 'Create'}
             </button>
           </div>
+          {creatingBottle && (
+            <div className="muted bottle-progress">
+              Initialising Wine prefix and injecting DXVK. First-time creation usually takes
+              30 to 60 seconds. Please do not click Create again; the UI will update on its own.
+            </div>
+          )}
 
           <div className="install-actions">
             <button
