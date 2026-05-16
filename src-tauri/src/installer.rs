@@ -103,14 +103,82 @@ pub fn installer_detect(path: String) -> Result<DetectResult, InstallerError> {
     })
 }
 
+/// Find the installer .exe inside a repack folder.
+///
+/// FitGirl and similar repackers don't use a fixed filename. Real
+/// examples we have seen in the wild:
+///
+///   setup.exe                    plain Inno Setup
+///   setup-multi.exe              FitGirl multi-language
+///   setup-multi2.exe             FitGirl multi-language v2
+///   setup-multi3.exe             ... and so on through multi5+
+///   setup-fitgirl-selective.exe  FitGirl selective installer
+///   setup-language.exe           a sub-installer the main one chains to
+///   install.exe                  the DODI / KaOs convention
+///
+/// We walk the top level (no recursion), collect every plausible
+/// installer .exe, and return the highest-priority one. The priority
+/// order matters: when both `setup-multi2.exe` and `setup-language.exe`
+/// exist, the user wants the multi2 one because that's the wizard that
+/// drives the install; `setup-language.exe` is a sub-process.
 fn find_setup_exe(root: &Path) -> Option<PathBuf> {
-    for candidate in &["setup.exe", "Setup.exe", "SETUP.EXE", "install.exe", "Install.exe"] {
-        let p = root.join(candidate);
-        if p.exists() {
-            return Some(p);
-        }
+    let entries = std::fs::read_dir(root).ok()?;
+    let mut hits: Vec<PathBuf> = entries
+        .flatten()
+        .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.to_lowercase())
+                .map(|n| n.ends_with(".exe") && (n.starts_with("setup") || n.starts_with("install")))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    if hits.is_empty() {
+        return None;
     }
-    None
+    hits.sort_by_key(|p| installer_exe_priority(p));
+    hits.into_iter().next()
+}
+
+/// Lower number wins. Drives the pick in `find_setup_exe`.
+fn installer_exe_priority(path: &Path) -> u32 {
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| n.to_lowercase())
+        .unwrap_or_default();
+    // Sub-installers that the main wizard chains to: lowest priority
+    // so they never get picked when the main one exists.
+    if name.contains("language") || name.contains("redist") || name.contains("vcredist") {
+        return 100;
+    }
+    // Plain `setup.exe` is the canonical Inno Setup name.
+    if name == "setup.exe" {
+        return 0;
+    }
+    // FitGirl selective installer (lets you skip languages / extras).
+    if name.starts_with("setup-fitgirl-selective") {
+        return 1;
+    }
+    // FitGirl multi-language: setup-multi.exe, setup-multi2.exe, ...
+    if name.starts_with("setup-multi") {
+        return 2;
+    }
+    // Any other setup-*.exe variant.
+    if name.starts_with("setup") {
+        return 3;
+    }
+    // install.exe and friends (DODI / KaOs).
+    if name == "install.exe" {
+        return 4;
+    }
+    if name.starts_with("install") {
+        return 5;
+    }
+    99
 }
 
 #[derive(Clone, Serialize)]
