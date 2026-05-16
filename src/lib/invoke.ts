@@ -76,6 +76,8 @@ export const wine = {
   removeBottle: (id: string) => invoke<void>('wine_remove_bottle', { id }),
   injectDxvk: (id: string) => invoke<void>('wine_inject_dxvk', { id }),
   bottleDxvkStatus: (id: string) => invoke<boolean>('wine_bottle_dxvk_status', { id }),
+  bottleSmokeTest: (id: string) =>
+    invoke<{ ok: boolean; stdout: string; stderr: string; exit_code: number }>('wine_bottle_smoke_test', { id }),
   scanBottleExes: (id: string, maxCount = 20) =>
     invoke<ExeCandidate[]>('wine_scan_bottle_exes', { id, maxCount }),
   runWinetricks: (id: string, verb: string) =>

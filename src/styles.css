@@ -593,6 +593,25 @@ code {
   white-space: nowrap;
 }
 
+.smoke-result {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-word;
+}
+
+.smoke-result.ok {
+  background: #143a20;
+  color: #7cd49a;
+}
+
+.smoke-result.bad {
+  background: #2a1414;
+  color: #ff8a8a;
+}
+
 .winetricks-row {
   display: flex;
   gap: 6px;

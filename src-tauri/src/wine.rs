@@ -262,6 +262,59 @@ pub fn wine_list_bottles() -> Result<Vec<Bottle>, WineError> {
     Ok(out)
 }
 
+#[derive(Serialize)]
+pub struct SmokeTestResult {
+    pub ok: bool,
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: i32,
+}
+
+/// Quick "is this bottle alive?" check. Runs `wine64 cmd /c "echo
+/// cellar-smoke-test"` against the prefix. If wine can spawn cmd.exe
+/// and capture stdout, the prefix, the wine binary, and the basic
+/// environment are all working. Headless, ~5 seconds.
+///
+/// Returns ok=true when stdout contains the marker string. Anything
+/// else (timeout, missing wine, broken cmd) sets ok=false and the
+/// renderer surfaces stderr to the user.
+#[tauri::command]
+pub async fn wine_bottle_smoke_test(id: String) -> Result<SmokeTestResult, WineError> {
+    let prefix = bottle_prefix_path(&id)?;
+    if !prefix.exists() {
+        return Err(WineError::NotFound { id });
+    }
+    let wine_bin = runtime::find_wine_bin().ok_or(WineError::SpawnFailed {
+        message: "wine64 not found".into(),
+    })?;
+    let marker = "cellar-smoke-test-ok";
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        tokio::process::Command::new(&wine_bin)
+            .arg("cmd")
+            .arg("/c")
+            .arg(format!("echo {}", marker))
+            .env("WINEPREFIX", &prefix)
+            // Mute audio + GUI so the smoke test is purely text-mode.
+            .env("WINEAUDIODRIVER", "")
+            .env("WINEDEBUG", "-all")
+            .stdin(Stdio::null())
+            .output(),
+    )
+    .await
+    .map_err(|_| WineError::SpawnFailed { message: "smoke test timed out after 30s".into() })?
+    .map_err(|e| WineError::SpawnFailed { message: e.to_string() })?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let ok = stdout.contains(marker);
+    Ok(SmokeTestResult {
+        ok,
+        stdout,
+        stderr,
+        exit_code: output.status.code().unwrap_or(-1),
+    })
+}
+
 /// Manually re-inject the DXVK DLL pack into a bottle. Useful when
 /// the user installs Whisky after creating a bottle, or when a game's
 /// installer overwrites the DLLs with stub versions.

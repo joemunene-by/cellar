@@ -86,6 +86,24 @@ export default function SettingsPane() {
     }
   };
 
+  const [smokeResults, setSmokeResults] = useState<Record<string, { ok: boolean; detail: string }>>({});
+
+  const smokeTest = async (b: Bottle) => {
+    setBusyId(b.id);
+    setSmokeResults((s) => ({ ...s, [b.id]: { ok: false, detail: 'running...' } }));
+    try {
+      const r = await wine.bottleSmokeTest(b.id);
+      const detail = r.ok
+        ? `wine + cmd.exe + prefix all working (exit ${r.exit_code})`
+        : `wine ran but the marker did not echo (exit ${r.exit_code}). stderr tail: ${r.stderr.split('\n').slice(-2).join(' | ')}`;
+      setSmokeResults((s) => ({ ...s, [b.id]: { ok: r.ok, detail } }));
+    } catch (err) {
+      setSmokeResults((s) => ({ ...s, [b.id]: { ok: false, detail: formatErr(err) } }));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   // Winetricks UI state. One operation at a time, shared log panel.
   const [trickVerb, setTrickVerb] = useState<Record<string, string>>({});
   const [trickRunning, setTrickRunning] = useState<{ bottleId: string; verb: string } | null>(null);
@@ -222,6 +240,15 @@ export default function SettingsPane() {
                   <div className="bottle-actions">
                     <button
                       className="btn"
+                      onClick={() => smokeTest(b)}
+                      disabled={busyId === b.id}
+                      type="button"
+                      title="Run wine64 cmd /c echo against the bottle to confirm it works end-to-end"
+                    >
+                      Smoke test
+                    </button>
+                    <button
+                      className="btn"
                       onClick={() => injectDxvk(b)}
                       disabled={busyId === b.id}
                       type="button"
@@ -233,6 +260,12 @@ export default function SettingsPane() {
                     </button>
                   </div>
                 </div>
+                {smokeResults[b.id] && (
+                  <div className={`smoke-result ${smokeResults[b.id].ok ? 'ok' : 'bad'}`}>
+                    {smokeResults[b.id].ok ? '✓ ' : '✗ '}
+                    {smokeResults[b.id].detail}
+                  </div>
+                )}
                 <div className="winetricks-row">
                   <select
                     className="select"
