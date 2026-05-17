@@ -150,3 +150,12 @@ font X installed, registry tweak Y, launch arg Z". User clicks
 MIT (code only). Nothing in this repo distributes games, repacks, or
 any copyrighted content. cellar is a launcher; the user supplies the
 game files.
+
+## Known Issue: 32-bit FitGirl Inno Setup stubs (v0.1)
+
+FitGirl repacks use a PE32 (32-bit) Inno Setup stub that requires a 64-bit
+Wine host process to run on Apple Silicon. Wine Staging/Devel 11.8 from Gcenx
+ships a 32-bit-only host and stack-overflows on the extraction thread.
+
+Fix tracked for v0.2: integrate Proton or a 64-bit Wine host build.
+Workaround: use a repack with a 64-bit installer (PE32+).
