@@ -293,6 +293,18 @@ pub async fn installer_run(
         // needed for the install to succeed. Game launches in
         // runtime::runtime_launch still get audio.
         .env("WINEAUDIODRIVER", "")
+        // Force wine's BUILTIN d3d11 / dxgi / d3d10core for installer
+        // runs, overriding the registry-level DXVK injection that
+        // wine_create_bottle sets up. Installers do not draw 3D, but
+        // Inno's bootstrap and ISDone's progress UI both touch the
+        // d3d11/dxgi DLLs as part of their early DLL graph. DXVK
+        // happily initializes a Vulkan device when loaded, which is
+        // wasted work for an installer AND has interacted badly with
+        // Inno's setup loader (MoltenVK init logs appear right before
+        // the secondary setup process exits with code 1, no Inno
+        // error written). Game launches in runtime::runtime_launch
+        // set their own WINEDLLOVERRIDES and still get full DXVK.
+        .env("WINEDLLOVERRIDES", "d3d11,d3d10core,dxgi=b")
         // Quieter wine log so the install log we surface is signal,
         // not the firehose of fixmes that mostly do not matter.
         .env("WINEDEBUG", "-all,err+seh")
