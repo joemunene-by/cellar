@@ -26,22 +26,27 @@ pub struct RuntimeStatus {
     pub rosetta_installed: bool,
 }
 
-/// Locate a wine64 binary. Lookup order, best-to-worst:
+/// Locate a wine binary. Lookup order, best-to-worst:
 ///   1. `CELLAR_WINE` env var (manual override)
-///   2. MythicApp/wine bundled with Mythic.app (CrossOver 24 base,
-///      Apple Silicon native, D3DMetal + DXVK + DXMT, ACTIVE)
-///   3. CrossOver.app (CodeWeavers, paid, wine 11 in CrossOver 26)
-///   4. Homebrew apple/apple/game-porting-toolkit formula (Apple GPTK)
-///   5. Apple GPTK .app bundle in /Applications
-///   6. Whisky's bundled wine 7.7 (ARCHIVED 2025-05; known to hang
+///   2. cellar's bundled wine-staging 11.x (Gcenx build, free, has
+///      modern WoW64 that does NOT have the freearc bug)
+///   3. MythicApp/wine bundled with Mythic.app
+///   4. CrossOver.app (CodeWeavers, paid, wine 11 in CrossOver 26)
+///   5. Homebrew apple/apple/game-porting-toolkit formula
+///   6. Apple GPTK .app bundle in /Applications
+///   7. Whisky's bundled wine 7.7 (ARCHIVED 2025-05; known to hang
 ///      on FitGirl's unarc.dll under its experimental 32on64 wow64)
-///   7. Plain wine64 on `PATH` (last resort)
+///   8. Plain wine64 / wine on `PATH` (last resort)
 ///
-/// Mythic is preferred because Whisky's pinned wine 7.7 has a
-/// documented freearc-decompressor bug under its new-style wow64,
-/// which makes every FitGirl repack fail with Inno error 1400
-/// "Invalid window handle". CrossOver-24-base wines do not have
-/// this bug; MythicApp ships the open-source build of that.
+/// Modern wine (9+) ships a single `wine` binary; the separate
+/// `wine64` was retired when the unified wow64 mode shipped. We
+/// probe both filenames at each candidate location and return the
+/// first that exists.
+///
+/// wine-staging 11.x is preferred because Whisky's pinned wine 7.7
+/// has a documented freearc-decompressor bug under its new-style
+/// wow64, which makes every FitGirl repack fail with Inno error
+/// 1400 "Invalid window handle". wine 9+ does not have this bug.
 pub fn find_wine_bin() -> Option<PathBuf> {
     if let Ok(p) = std::env::var("CELLAR_WINE") {
         let path = PathBuf::from(p);
@@ -50,8 +55,15 @@ pub fn find_wine_bin() -> Option<PathBuf> {
         }
     }
     let home = std::env::var("HOME").unwrap_or_default();
-    // Mythic.app downloads its wine engine to the user's Application
-    // Support dir on first launch, not into the .app bundle.
+
+    let staging_wine = format!(
+        "{}/.cellar/wine-staging/Wine Staging.app/Contents/Resources/wine/bin/wine",
+        home
+    );
+    let staging_wine64 = format!(
+        "{}/.cellar/wine-staging/Wine Staging.app/Contents/Resources/wine/bin/wine64",
+        home
+    );
     let mythic_wine = format!(
         "{}/Library/Application Support/Mythic/Engine/wine/bin/wine64",
         home
@@ -62,13 +74,19 @@ pub fn find_wine_bin() -> Option<PathBuf> {
         "{}/Library/Application Support/com.isaacmarovitz.Whisky/Libraries/Wine/bin/wine64",
         home
     );
-    let candidates: [&str; 8] = [
+    let candidates: [&str; 10] = [
+        // Modern wine builds (no freearc bug)
+        staging_wine.as_str(),
+        staging_wine64.as_str(),
         mythic_wine.as_str(),
         crossover_wine.as_str(),
+        // Apple GPTK (wine 8-ish)
         "/usr/local/opt/game-porting-toolkit/bin/wine64",
         "/opt/homebrew/opt/game-porting-toolkit/bin/wine64",
         "/Applications/Game Porting Toolkit.app/Contents/Resources/wine/bin/wine64",
+        // Whisky's archived wine 7.7
         whisky_wine.as_str(),
+        // Plain PATH fallbacks
         "/opt/homebrew/bin/wine64",
         "/usr/local/bin/wine64",
     ];
@@ -82,10 +100,12 @@ pub fn find_wine_bin() -> Option<PathBuf> {
 }
 
 fn gptk_installed() -> bool {
-    // Any of the modern wine sources counts: Mythic, CrossOver, GPTK
-    // formula, GPTK app, or Whisky. cellar uses whichever finds the
+    // Any modern wine source counts: cellar-bundled staging, Mythic,
+    // CrossOver, GPTK, or Whisky. cellar uses whichever finds the
     // wine binary at runtime.
-    if PathBuf::from("/Applications/Mythic.app").exists()
+    let home = std::env::var("HOME").unwrap_or_default();
+    if PathBuf::from(format!("{}/.cellar/wine-staging/Wine Staging.app", home)).exists()
+        || PathBuf::from("/Applications/Mythic.app").exists()
         || PathBuf::from("/Applications/CrossOver.app").exists()
         || PathBuf::from("/opt/homebrew/opt/game-porting-toolkit").exists()
         || PathBuf::from("/usr/local/opt/game-porting-toolkit").exists()
@@ -93,7 +113,6 @@ fn gptk_installed() -> bool {
     {
         return true;
     }
-    let home = std::env::var("HOME").unwrap_or_default();
     PathBuf::from(format!(
         "{}/Library/Application Support/com.isaacmarovitz.Whisky/Libraries/Wine/bin/wine64",
         home
