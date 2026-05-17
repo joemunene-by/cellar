@@ -271,15 +271,42 @@ pub async fn installer_run(
         inno_log_path
     );
 
+    // Pre-launch wine explorer.exe so the bottle has a desktop
+    // service running BEFORE the installer needs one. Without this
+    // step, wineserver lazy-spawns explorer the moment Inno's
+    // post-language [Code] script calls any shell function (often a
+    // shortcut-creation or systray probe). That lazy spawn happens
+    // in a separate macOS audit-session context, and on M-series
+    // Macs winemac.drv's DLL_PROCESS_ATTACH fails to connect to
+    // WindowServer in that context ("process_attach: Initialization
+    // of winemac.drv failed" in the wine trace). Inno surfaces the
+    // failure as RPC_S_SERVER_UNAVAILABLE (0x6ba) and exits with
+    // code 1 right after the language picker, with no Inno error in
+    // cellar-install.log because the cascade happens below Inno.
+    //
+    // Pre-launching explorer here makes it a direct posix_spawn child
+    // of cellar, so it inherits cellar's GUI session and winemac.drv
+    // initialises cleanly. The installer then reuses this explorer
+    // for any shell calls. We do not wait on the explorer process;
+    // wineserver tears it down when the bottle session times out.
+    let _ = Command::new(&wine_bin)
+        .arg("explorer.exe")
+        .env("WINEPREFIX", &prefix)
+        .env("WINEAUDIODRIVER", "")
+        .env("WINEDEBUG", "-all")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .spawn();
+    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+
     // NOTE: an earlier version wrapped the launch in
     // `wine64 explorer /desktop=...`, but that detaches: explorer
     // spawns setup.exe and immediately exits, so child.wait() sees
     // an instant "done" and cellar's wizard skips to the register
     // step the second you click anything in the language picker.
-    // Joe confirmed CoD MW3's actual install-time failures are
-    // wrong-install-path errors, not window handle issues, so the
-    // wrapper was solving the wrong problem. Launching setup.exe
-    // directly so our wait blocks until the real installer exits.
+    // Pre-launching a sibling explorer.exe (above) gives us the
+    // desktop service without taking over the wait chain.
     let mut child = Command::new(&wine_bin)
         .arg(&installer_exe)
         .arg(format!("/LOG={}", inno_log_path))
