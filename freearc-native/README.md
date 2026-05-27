@@ -1,67 +1,87 @@
 # cellar-freearc-native
 
-Pure-Rust reader for the FreeArc archive container format, the wrapper
-FitGirl repacks (`fg-*.bin`) use. The goal is decompression on macOS
-and Linux without needing wine at all for archives that only use open
-algorithms (`storing`, `lzma`, `lz4`, `zstd`, `srep`). For FitGirl-
-custom CLS algorithms (`lolzi`, `lolzx`, `lolly`, `lollypop`,
-`lollypop2`) we add a hybrid path that calls the closed-source
-`cls-*.dll` plugins via libloading under wine, but bypasses
-`unarc.dll`'s state machine that wedges on macOS.
+Pure-Rust reader for the FreeArc archive container format
+(`.arc`, FitGirl's `fg-*.bin`). No wine, no DLLs, no FFI.
+
+This crate parses the on-disk structure and decodes the codecs that
+have open-source implementations. It does NOT decode the closed-source
+CLS plugins FitGirl ships (`lolzi`, `lolzx`, `lolly`, `lollypop`); a
+hybrid path can invoke those under wine, but that lives in a separate
+crate.
 
 ## why this exists
 
-The earlier `freearc-shim` binary (sibling crate) loads `unarc.dll`
-directly and calls `FreeArcExtract`. On wine 11.8 + macOS that path
-deadlocks inside `unarc.dll`'s console-mode probe state machine, even
-with `FreeConsole()` called pre-load; the IOCTL still returns
-`ACCESS_DENIED` from the wine macOS console driver and unarc's
-recovery branch waits on an event that nothing signals.
+`cellar`'s earlier path loaded `unarc.dll` directly and called
+`FreeArcExtract`. On wine 11.8 + macOS that deadlocks inside
+`unarc.dll`'s console-mode probe state machine: even with
+`FreeConsole()` called pre-load, the IOCTL returns `ACCESS_DENIED`
+from wine's mac console driver and unarc waits on an event that
+nothing signals. So we route around `unarc.dll`: do the archive walk
+ourselves in Rust and dispatch each compressed block to either a
+native Rust decoder or a direct `cls-*.dll` call.
 
-The native reader does the archive walk and block routing in Rust,
-where we control every code path. For each compressed block we either
-call a native Rust decoder (open algorithms) or load the matching
-`cls-*.dll` directly without going through unarc's broken outer
-loop.
+## what works today
+
+- Footer-first parsing: locate the descriptor in the last 4 KiB,
+  decode it, walk back to the FOOTER block.
+- Control-block listing: HEADER, DIR, FOOTER are fully parsed; DATA
+  blocks are listed.
+- Decompressors:
+  - `storing` (memcpy)
+  - `lzma:*` with parameters parsed from the method string
+- DIRECTORY block: solid-block table, directory list, full file
+  table with paths, sizes, mtimes, and CRC-32s.
+
+## CLIs
+
+```
+fg-arc-ls    <archive>             list footer + control blocks
+fg-arc-files <archive>             list every file inside the archive
+fg-arc-dump  --kind dir <archive>  decompress one control block + hexdump
+```
+
+`fg-arc-files` works on any FreeArc archive, including FitGirl bins
+whose DATA solid blocks use closed-source plugins. Listing files
+does not require decoding the file bytes.
+
+Example on a FitGirl test archive:
+
+```
+$ fg-arc-files fg-05.bin
+d              0 00000000 solid=0   main
+d              0 00000000 solid=0   miles
+-          93696 fecb2076 solid=1   miles/mssmp3.asi
+-         153088 f5494b3e solid=1   miles/mssvoice.asi
+-         109976 f32625a0 solid=1   logo.bmp
+...
+-           1594 fbd28a4e solid=1   installscript.vdf
+
+30 files, 27638886 bytes original
+```
 
 ## phases
 
-- **phase 1 (done)** scan: walk the archive, find every `ArC\x01`
-  block header, report kind byte and method string. Diagnostic only,
-  no decompression. `cargo run --release --bin freearc-scan fg-05.bin`.
-- **phase 2 (next)** native decoders: `storing` (memcpy), `lzma`
-  (via `lzma-rs`), `lz4`, `zstd`, `srep`. Enough to extract
-  CoD-MW3 `fg-05.bin`, which uses only `storing` + `lzma`.
-- **phase 3 (after that)** hybrid CLS path: for blocks tagged
-  `lolzi` etc., load the corresponding `cls-*.dll` via libloading
-  and call its decode entry. Tests against larger FitGirl bins.
-- **phase 4 (cellar integration)** swap `installer.rs` to call this
-  binary instead of `cellar-freearc.exe` so the GUI install flow
-  goes through the native path on macOS.
+- Phase 1 — naive forward scanner. Misread the format, replaced.
+- Phase 2 — footer-first reader + LZMA decoder for the footer block.
+- Phase 3 — DIRECTORY block parser + file table (this version).
+- Phase 4 (planned) — byte-range extraction for `storing` / `lzma`
+  solid blocks, with per-file CRC verification.
+- Phase 5 (planned) — zstd, srep, lz4 decoders.
+- Phase 6 (planned) — hybrid wine path for `lolzi`, `lolzx`, `lolly`,
+  `lollypop`. Loads the matching `cls-*.dll` via libloading and
+  calls its decode entry directly, bypassing `unarc.dll`'s wedged
+  outer loop.
+- Phase 7 (planned) — wire into `cellar`'s `installer.rs` so the GUI
+  install flow uses the native path.
 
-## scope check on a real archive
+## references
 
-```
-$ freearc-scan fg-05.bin --verbose
-scanning fg-05.bin (9578531 bytes)
-found 4 blocks
-           0  kind=0x00  method=""
-           8  kind=0x02  method="storing"
-     9578408  kind=0x06  method="lzma:mfbt4:d1m"
-     9578501  kind=0x08  method="lzma:mfbt4:d1m"
-```
+- FreeArc archive format spec: `FreeArc-archive-format.md` in this
+  directory.
+- Canonical C++ reference: `ArcStructure.h` from `xredor/unarc`
+  (https://github.com/xredor/unarc), which mirrors Bulat-Ziganshin's
+  FreeArc archiver source.
 
-The bulk of this archive is `storing` (raw) data; the two trailing
-LZMA blocks are the file table. Extraction is `tiny LZMA decode +
-byte-range copy`, no exotic codecs. CoD MW3's fg-05.bin is a clean
-phase-2 target.
+## license
 
-## build
-
-```
-cargo build --release
-```
-
-Pure Rust, no system dependencies. Runs natively on macOS / Linux /
-Windows. Wine only enters the picture in phase 3 when we link the
-CLS plugin DLLs.
+MIT.

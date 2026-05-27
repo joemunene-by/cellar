@@ -22,6 +22,7 @@
 pub mod decompress;
 pub mod dir;
 pub mod error;
+pub mod extract;
 pub mod footer;
 pub mod varint;
 
