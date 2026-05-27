@@ -804,3 +804,122 @@ textarea.input {
   background-clip: padding-box;
   border: 2px solid transparent;
 }
+
+.archive-peek {
+  margin-top: 14px;
+  background: #0d0d12;
+  border: 1px solid #22222a;
+  border-radius: 6px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.archive-peek-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.archive-peek-header strong {
+  color: #fff;
+  font-size: 13px;
+}
+
+.archive-peek-codecs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.archive-peek-codecs ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.archive-peek-codecs li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #14141a;
+  border: 1px solid #22222a;
+}
+
+.codec-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+
+.codec-badge-ok {
+  background: #143018;
+  color: #6cd97c;
+  border: 1px solid #1f5c2b;
+}
+
+.codec-badge-wine {
+  background: #2e1f0e;
+  color: #e0a04e;
+  border: 1px solid #5c411f;
+}
+
+.archive-peek-warning {
+  background: #2e1f0e;
+  border: 1px solid #5c411f;
+  color: #e0a04e;
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+.archive-peek-files summary {
+  cursor: pointer;
+  color: #aaa;
+  padding: 4px 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.archive-peek-files table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.archive-peek-files th,
+.archive-peek-files td {
+  text-align: left;
+  padding: 3px 8px;
+  border-bottom: 1px solid #1a1a22;
+  vertical-align: top;
+}
+
+.archive-peek-files th {
+  color: #777;
+  font-weight: 500;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.archive-peek-files td:nth-child(2),
+.archive-peek-files td:nth-child(3) {
+  white-space: nowrap;
+  color: #aaa;
+}
+
+.archive-peek-files tr.is-dir td {
+  color: #6cd97c;
+}

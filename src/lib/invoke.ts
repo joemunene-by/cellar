@@ -105,6 +105,34 @@ export const installer = {
     invoke<number>('installer_run', { bottleId, installerExe }),
 };
 
+// ----------------------- Archive (native FreeArc reader) -----------------------
+
+export interface PeekFile {
+  path: string;
+  size: number;
+  crc: number;
+  is_dir: boolean;
+}
+
+export interface PeekCodec {
+  method: string;
+  supported_natively: boolean;
+}
+
+export interface ArchivePeek {
+  archive_path: string;
+  archive_bytes: number;
+  file_count: number;
+  total_uncompressed_bytes: number;
+  codecs: PeekCodec[];
+  partial_reason: string | null;
+  files: PeekFile[];
+}
+
+export const archive = {
+  peek: (path: string) => invoke<ArchivePeek>('archive_peek', { path }),
+};
+
 /** Best-effort discrimination on the {kind, ...} error shape used by all
  *  cellar backend commands. */
 export function isCellarError(err: unknown): { kind: string; [k: string]: unknown } | null {

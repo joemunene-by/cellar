@@ -13,8 +13,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import { wine, installer, library, isCellarError } from '../lib/invoke';
-import type { Bottle, DetectResult, ExeCandidate, InstallerKind } from '../lib/invoke';
+import { archive, wine, installer, library, isCellarError } from '../lib/invoke';
+import type {
+  ArchivePeek,
+  Bottle,
+  DetectResult,
+  ExeCandidate,
+  InstallerKind,
+} from '../lib/invoke';
 
 type Step = 'pick' | 'detect' | 'bottle' | 'run' | 'register';
 
@@ -46,6 +52,12 @@ export default function InstallWizard() {
   const [launchExe, setLaunchExe] = useState('');
   const [exeCandidates, setExeCandidates] = useState<ExeCandidate[]>([]);
   const [scanningExes, setScanningExes] = useState(false);
+
+  // Archive peek (native FreeArc reader). Optional, surfaced on the
+  // detect step when we can plausibly point at a fg-*.bin / *.arc.
+  const [peek, setPeek] = useState<ArchivePeek | null>(null);
+  const [peeking, setPeeking] = useState(false);
+  const [peekShowAll, setPeekShowAll] = useState(false);
 
   // Refresh bottles when reaching the bottle-pick step.
   useEffect(() => {
@@ -240,6 +252,42 @@ export default function InstallWizard() {
     setInstallDir('');
     setLaunchExe('');
     setError(null);
+    setPeek(null);
+    setPeekShowAll(false);
+  };
+
+  // Default the file dialog to the source dir so users land in the
+  // folder that actually contains the fg-*.bin / *.arc files.
+  const defaultPeekDir = (() => {
+    if (!sourcePath) return undefined;
+    // If sourcePath is a file (the picked .exe), strip the basename.
+    const last = sourcePath.lastIndexOf('/');
+    return last > 0 ? sourcePath.slice(0, last) : sourcePath;
+  })();
+
+  const peekArchive = async () => {
+    setError(null);
+    setPeek(null);
+    setPeekShowAll(false);
+    const picked = await open({
+      directory: false,
+      multiple: false,
+      defaultPath: defaultPeekDir,
+      filters: [
+        { name: 'FreeArc archive', extensions: ['bin', 'arc'] },
+        { name: 'All files', extensions: ['*'] },
+      ],
+    });
+    if (typeof picked !== 'string') return;
+    setPeeking(true);
+    try {
+      const result = await archive.peek(picked);
+      setPeek(result);
+    } catch (e) {
+      setError(formatErr(e));
+    } finally {
+      setPeeking(false);
+    }
   };
 
   return (
@@ -292,10 +340,15 @@ export default function InstallWizard() {
             <button className="btn btn-primary" onClick={() => setStep('bottle')} type="button" disabled={!detection.setup_exe}>
               Continue
             </button>
+            <button className="btn" onClick={peekArchive} type="button" disabled={peeking}>
+              {peeking ? 'Reading archive...' : 'Preview archive contents'}
+            </button>
             <button className="btn btn-ghost" onClick={reset} type="button">
               Start over
             </button>
           </div>
+
+          {peek && <ArchivePeekPane peek={peek} showAll={peekShowAll} onToggle={() => setPeekShowAll((v) => !v)} />}
         </div>
       )}
 
@@ -512,5 +565,92 @@ function formatErr(err: unknown): string {
   if (e.kind === 'spawn_failed') return `Spawn failed: ${e.message ?? 'unknown'}`;
   if (e.kind === 'io_error') return `Filesystem error: ${e.message ?? 'unknown'}`;
   if (e.kind === 'already_exists') return `Bottle id collision (${e.id ?? '?'}). Try again.`;
+  if (e.kind === 'not_free_arc') return `Not a FreeArc archive: ${e.detail ?? 'no signature'}`;
+  if (e.kind === 'read_failed') return `Archive read failed: ${e.detail ?? 'unknown'}`;
   return `${e.kind}${e.message ? `: ${e.message}` : ''}`;
+}
+
+const PEEK_PREVIEW_COUNT = 30;
+
+function ArchivePeekPane({
+  peek,
+  showAll,
+  onToggle,
+}: {
+  peek: ArchivePeek;
+  showAll: boolean;
+  onToggle: () => void;
+}) {
+  const visible = showAll ? peek.files : peek.files.slice(0, PEEK_PREVIEW_COUNT);
+  const remaining = peek.files.length - visible.length;
+  const archiveName = peek.archive_path.split('/').pop() ?? peek.archive_path;
+  return (
+    <div className="archive-peek">
+      <header className="archive-peek-header">
+        <strong>{archiveName}</strong>
+        <span className="muted">
+          {peek.file_count} files, {prettyBytes(peek.total_uncompressed_bytes)} original
+          ({prettyBytes(peek.archive_bytes)} on disk)
+        </span>
+      </header>
+
+      <div className="archive-peek-codecs">
+        <span className="meta-label">codecs</span>
+        <ul>
+          {peek.codecs.map((c, i) => (
+            <li key={i} className={c.supported_natively ? 'codec-ok' : 'codec-needs-wine'}>
+              <code>{c.method}</code>
+              {c.supported_natively ? (
+                <span className="codec-badge codec-badge-ok">native</span>
+              ) : (
+                <span className="codec-badge codec-badge-wine">needs wine</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {peek.partial_reason && (
+        <div className="muted archive-peek-warning">{peek.partial_reason}</div>
+      )}
+
+      <details className="archive-peek-files" open>
+        <summary>
+          {visible.length} of {peek.file_count} files
+        </summary>
+        <table>
+          <thead>
+            <tr>
+              <th>path</th>
+              <th>size</th>
+              <th>crc32</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((f, i) => (
+              <tr key={i} className={f.is_dir ? 'is-dir' : undefined}>
+                <td>
+                  <code>{f.is_dir ? `${f.path}/` : f.path}</code>
+                </td>
+                <td>{f.is_dir ? '' : prettyBytes(f.size)}</td>
+                <td>
+                  <code>{f.is_dir ? '' : (f.crc >>> 0).toString(16).padStart(8, '0')}</code>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {remaining > 0 && (
+          <button className="btn btn-ghost" onClick={onToggle} type="button">
+            Show {remaining} more
+          </button>
+        )}
+        {showAll && peek.files.length > PEEK_PREVIEW_COUNT && (
+          <button className="btn btn-ghost" onClick={onToggle} type="button">
+            Collapse to {PEEK_PREVIEW_COUNT}
+          </button>
+        )}
+      </details>
+    </div>
+  );
 }
