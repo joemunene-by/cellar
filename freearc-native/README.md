@@ -29,6 +29,7 @@ native Rust decoder or a direct `cls-*.dll` call.
 - Decompressors:
   - `storing` (memcpy)
   - `lzma:*` with parameters parsed from the method string
+  - `zstd[:level]` via the zstd crate
 - DIRECTORY block: solid-block table, directory list, full file
   table with paths, sizes, mtimes, and CRC-32s.
 
@@ -63,10 +64,9 @@ d              0 00000000 solid=0   miles
 
 - Phase 1 — naive forward scanner. Misread the format, replaced.
 - Phase 2 — footer-first reader + LZMA decoder for the footer block.
-- Phase 3 — DIRECTORY block parser + file table (this version).
-- Phase 4 (planned) — byte-range extraction for `storing` / `lzma`
-  solid blocks, with per-file CRC verification.
-- Phase 5 (planned) — zstd, srep, lz4 decoders.
+- Phase 3 — DIRECTORY block parser + file table.
+- Phase 4 — byte-range extraction with per-file CRC verification.
+- Phase 5 — zstd decoder (this version). srep, lz4 still pending.
 - Phase 6 (planned) — hybrid wine path for `lolzi`, `lolzx`, `lolly`,
   `lollypop`. Loads the matching `cls-*.dll` via libloading and
   calls its decode entry directly, bypassing `unarc.dll`'s wedged

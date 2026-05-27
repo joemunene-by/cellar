@@ -3,12 +3,13 @@
 //!
 //! Native decoders covered so far:
 //!   - `storing`           memcpy
-//!
-//! Planned next:
 //!   - `lzma:*`            via lzma-rs with header synthesised from
 //!                         the method-string parameters
-//!   - `zstd`              via zstd crate
+//!   - `zstd[:N]`          via the zstd crate
+//!
+//! Planned next:
 //!   - `srep:lzma`         via two-stage srep port + lzma
+//!   - `lz4[:N]`           via lz4_flex
 //!
 //! Anything else returns `UnsupportedCompressor`. The caller can fall
 //! back to the hybrid CLS-plugin-via-wine path (not in this crate).
@@ -31,7 +32,20 @@ pub fn decompress(method: &str, compressed: &[u8], orig_size: u64) -> Result<Vec
     if let Some(params) = method.strip_prefix("lzma:") {
         return decompress_lzma(compressed, orig_size, params);
     }
+    if method == "zstd" || method.starts_with("zstd:") {
+        return decompress_zstd(compressed, orig_size);
+    }
     Err(ArcError::UnsupportedCompressor(method.to_owned()))
+}
+
+/// FreeArc stores zstd-compressed blocks as standard zstd frames, so
+/// we just hand the bytes to the zstd crate. The level token after
+/// the colon (e.g. `zstd:22`) is encoder-only and irrelevant here.
+fn decompress_zstd(compressed: &[u8], orig_size: u64) -> Result<Vec<u8>> {
+    let mut out = Vec::with_capacity(orig_size as usize);
+    zstd::stream::copy_decode(compressed, &mut out)
+        .map_err(|e| ArcError::UnsupportedCompressor(format!("zstd decode failed: {}", e)))?;
+    Ok(out)
 }
 
 /// FreeArc strips the standard 13-byte LZMA header (5-byte properties
@@ -104,4 +118,40 @@ pub fn crc32(data: &[u8]) -> u32 {
     let mut h = Hasher::new();
     h.update(data);
     h.finalize()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn storing_roundtrip() {
+        let body = b"the quick brown fox";
+        let out = decompress("storing", body, body.len() as u64).unwrap();
+        assert_eq!(&out, body);
+    }
+
+    #[test]
+    fn storing_size_mismatch_is_truncated() {
+        let body = b"abc";
+        let err = decompress("storing", body, 99).err().unwrap();
+        assert!(matches!(err, ArcError::Truncated));
+    }
+
+    #[test]
+    fn zstd_roundtrip() {
+        let body = b"hello hello hello hello hello world world world world".repeat(8);
+        let comp = zstd::stream::encode_all(body.as_slice(), 3).unwrap();
+        let out = decompress("zstd", &comp, body.len() as u64).unwrap();
+        assert_eq!(out, body);
+        // method-string variants with level tokens should still work
+        let out2 = decompress("zstd:22", &comp, body.len() as u64).unwrap();
+        assert_eq!(out2, body);
+    }
+
+    #[test]
+    fn unknown_codec_returns_unsupported() {
+        let err = decompress("lolzi", b"", 0).err().unwrap();
+        assert!(matches!(err, ArcError::UnsupportedCompressor(_)));
+    }
 }

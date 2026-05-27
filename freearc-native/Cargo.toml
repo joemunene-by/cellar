@@ -9,6 +9,7 @@ description = "Pure-Rust reader for FreeArc archive format, the container FitGir
 lzma-rs = "0.3"
 crc32fast = "1.4"
 clap = { version = "4", features = ["derive"] }
+zstd = { version = "0.13", default-features = false }
 
 [profile.release]
 strip = true
