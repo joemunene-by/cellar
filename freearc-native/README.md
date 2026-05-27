@@ -66,13 +66,18 @@ d              0 00000000 solid=0   miles
 - Phase 2 — footer-first reader + LZMA decoder for the footer block.
 - Phase 3 — DIRECTORY block parser + file table.
 - Phase 4 — byte-range extraction with per-file CRC verification.
-- Phase 5 — zstd decoder (this version). srep, lz4 still pending.
+- Phase 5a — zstd decoder. srep, ppmd still pending.
+- Phase 7a — `archive_peek` Tauri command on the cellar side, backed
+  by this crate via a path dep. Renderer can list files in any
+  FreeArc archive without invoking wine.
 - Phase 6 (planned) — hybrid wine path for `lolzi`, `lolzx`, `lolly`,
   `lollypop`. Loads the matching `cls-*.dll` via libloading and
   calls its decode entry directly, bypassing `unarc.dll`'s wedged
   outer loop.
-- Phase 7 (planned) — wire into `cellar`'s `installer.rs` so the GUI
-  install flow uses the native path.
+- Phase 7b (planned) — UI hook on cellar's installer page: a
+  "Preview contents" button that opens a file-list pane via
+  `archive_peek`, so users see what's in a 20+ GB bin before
+  committing to the install.
 
 ## references
 

@@ -30,9 +30,10 @@ installer-handling flow, and the launch loop.
 ```
 cellar  (Tauri 2 / Rust + React)
   - per-game bottles, library, install / launch UI
+  - native FreeArc reader: archive_peek, no wine for inspection
   v
-Wine 9.x  (GPTK-patched build, vendored or homebrew)
-  - Windows API translation
+Wine 11.x  (Gcenx wine-staging / wine-devel, vendored)
+  - Windows API translation for the install + launch loop
   v
 Apple Game Porting Toolkit (GPTK)
   - D3D11 / D3D12 -> Metal via D3DMetal
@@ -119,31 +120,77 @@ cellar/
       library.rs          ~/.cellar/library.json read / write
       runtime.rs          GPTK detect, DXVK config, launch_game
       installer.rs        repack detection + install orchestration
+      archive.rs          archive_peek (native FreeArc reader)
+  freearc-native/         pure-Rust FreeArc reader (own crate)
+    src/                  footer, dir, decompress, extract, varint
+    src/bin/              fg-arc-ls, fg-arc-files, fg-arc-x, fg-arc-dump
+    README.md             reader-specific docs + format spec link
+    FreeArc-archive-format.md
+  freearc-shim/           PE32 helper that loads unarc.dll under wine
+                          (legacy hybrid path, kept for non-supported
+                          codec chains until phase-6 lands)
   scripts/
     setup-gptk.sh         one-time install of GPTK + Wine + DXVK
 ```
 
+## native FreeArc reader
+
+`freearc-native` is a sibling crate (and standalone open-source library)
+that parses FreeArc archives end-to-end in pure Rust. No wine, no DLLs,
+no FFI. cellar uses it from the renderer via the `archive_peek` Tauri
+command to inspect a FitGirl `fg-*.bin` BEFORE running the installer.
+
+What works today:
+
+- footer-first parser (locate descriptor in last 4 KiB, walk back)
+- HEADER / DIR / FOOTER control blocks fully parsed; DATA blocks listed
+- decoders: `storing`, `lzma:*` (with synthesised header), `zstd[:N]`
+- DIRECTORY block: solid-block table, dir names, full file table with
+  paths, sizes, mtimes, CRC-32s
+- per-file extraction with CRC verification
+
+What it does NOT do (yet): decode the closed-source CLS plugins
+(`lolzi`, `lolzx`, `lolly`, `lollypop`) that FitGirl uses for their
+heaviest data blocks. The peek path still works on those archives (DIR
+blocks use lzma, not lollypop), so users see the file list even when
+extraction needs the hybrid wine path.
+
+Standalone CLIs:
+
+```
+fg-arc-ls    <archive>             list footer + control blocks
+fg-arc-files <archive>             list every file in the archive
+fg-arc-x     <archive> <out-dir>   extract files (skips unsupported codecs)
+fg-arc-dump  --kind dir <archive>  decompress one control block + hexdump
+```
+
+See `freearc-native/README.md` and `freearc-native/FreeArc-archive-format.md`
+for the format spec and reader internals.
+
 ## roadmap
 
-**phase 1 (v0.1, today):** Tauri 2 + Rust shell. Library UI placeholder.
-Wine bottle create / list / remove via shell. Plain installer launch
-(no FitGirl-specific automation yet). Manual library entry.
+**v0.1 (today):** Tauri 2 + Rust shell. Wine bottle create / list /
+remove via shell. Plain installer launch. Manual library entry.
+Repack detection (FitGirl / DODI / KaOs / Inno Setup) via folder
+heuristics. `archive_peek` exposes the native FreeArc reader to the
+UI; UI hook still pending.
 
-**phase 2 (v0.2):** Repack detection. Recognise FitGirl / DODI / KaOs
-folder structure. Walk the Inno Setup wizard programmatically when
-possible. Surface install progress in the UI.
+**v0.2:** Hybrid wine path for the closed-source CLS plugins
+(`lolzi`, `lolzx`, `lolly`, `lollypop`). Loads each `cls-*.dll`
+under wine directly, bypassing `unarc.dll`'s outer state machine
+(which wedges on the wine-on-Mac console-IOCTL bug — see issue
+notes below). Unlocks native extraction for the full FitGirl set.
 
-**phase 3 (v0.3):** Polished library. Card grid, last-played, total
-play time, launch button, delete game. Per-game settings (DXVK toggle,
-ESYNC, MSYNC, dpi, custom env vars).
+**v0.3:** Polished library. Card grid, last-played, total play time,
+launch button, delete game. Per-game settings (DXVK toggle, ESYNC,
+MSYNC, dpi, custom env vars).
 
-**phase 4 (v0.4):** Save-game backup. iCloud Drive or any chosen
-external path. Per-game schedule. Optional sync of game settings across
-machines via a private git mirror of `~/.cellar/library.json`.
+**v0.4:** Save-game backup. iCloud Drive or any chosen external
+path. Per-game schedule. Optional sync of `~/.cellar/library.json`
+across machines via a private git mirror.
 
-**phase 5 (v0.5):** Game-specific shims. Catalogue of "this game needs
-font X installed, registry tweak Y, launch arg Z". User clicks
-**Install**, cellar applies the shim automatically.
+**v0.5:** Game-specific shims. Catalogue of "this game needs font X,
+registry tweak Y, launch arg Z". One-click apply.
 
 ## license
 
@@ -151,11 +198,32 @@ MIT (code only). Nothing in this repo distributes games, repacks, or
 any copyrighted content. cellar is a launcher; the user supplies the
 game files.
 
-## Known Issue: 32-bit FitGirl Inno Setup stubs (v0.1)
+## known issues
 
-FitGirl repacks use a PE32 (32-bit) Inno Setup stub that requires a 64-bit
-Wine host process to run on Apple Silicon. Wine Staging/Devel 11.8 from Gcenx
-ships a 32-bit-only host and stack-overflows on the extraction thread.
+### winemac.drv HWND lifecycle deadlock (FitGirl installs)
 
-Fix tracked for v0.2: integrate Proton or a 64-bit Wine host build.
-Workaround: use a repack with a 64-bit installer (PE32+).
+FitGirl repacks use Inno Setup 5.5 + ISDone.dll + unarc.dll +
+botva2.dll + cls-*.dll. On wine 11.8 with the Mac driver, unarc.dll
+deadlocks inside its console-mode probe state machine after the
+first successful progress callback: the IOCTL_CONDRV_GET_MODE call
+returns ACCESS_DENIED from the wine macOS console driver, unarc
+misreads that as "interactive console", and waits forever on an
+event nothing signals.
+
+Tested mitigations (stack patch, comctl32 native, WinXP mode,
+virtual desktop, FreeConsole) do not fix the underlying winemac.drv
+bug. The native FreeArc reader (above) is the planned path forward:
+once the hybrid CLS plugin loader lands in v0.2, cellar will route
+around `unarc.dll` entirely for FitGirl bins.
+
+Workaround today: use a repack that uses only open codecs
+(`storing`, `lzma`, `zstd`) — the existing `fg-arc-x` CLI extracts
+those archives directly. For `lollypop`-based FitGirl bins, manual
+extraction on a Windows machine (or under bottled wine on Linux
+with the older driver) is the only path until v0.2.
+
+### 32-bit Inno Setup stubs
+
+FitGirl repacks use PE32 (32-bit) Inno Setup stubs. They run under
+the bundled wine just fine; the deadlock above is independent of
+the stub bitness.
