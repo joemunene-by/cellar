@@ -1,0 +1,24 @@
+[package]
+name = "cellar-freearc"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Headless wrapper around unarc.dll's FreeArcExtract. Decompresses FitGirl-style .bin archives under wine without going near FitGirl's broken-on-macOS Inno GUI."
+
+[dependencies]
+libloading = "0.8"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "z"
+
+# Target i686-pc-windows-gnu — unarc.dll is 32-bit so the loader process
+# must be 32-bit too. Cross-compile from Mac / Linux via:
+#   rustup target add i686-pc-windows-gnu
+#   apt install mingw-w64        (or: brew install mingw-w64)
+#   cargo build --release --target i686-pc-windows-gnu
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
