@@ -99,22 +99,6 @@ fn main() -> ExitCode {
         return ExitCode::from(2);
     }
 
-    // Detach from the console BEFORE loading unarc.dll. Wine 11.8 on
-    // macOS returns ACCESS_DENIED for IOCTL_CONDRV_GET_MODE on the
-    // default console attached to a console-subsystem PE. unarc.dll
-    // misreads that as "interactive console" and spins up a progress
-    // UI thread that deadlocks (the call chain ends in
-    // select(timeout=infinite) on a sync event that never signals).
-    // With FreeConsole called, GetConsoleMode returns
-    // ERROR_INVALID_HANDLE, which unarc handles by skipping its
-    // progress UI and going straight to file-mode output through our
-    // callback. Compatible everywhere: on real Windows FreeConsole
-    // is a no-op when there is no inherited console.
-    unsafe extern "system" {
-        fn FreeConsole() -> i32;
-    }
-    let _ = unsafe { FreeConsole() };
-
     let lib = match unsafe { Library::new("unarc.dll") } {
         Ok(l) => l,
         Err(err) => {
@@ -137,6 +121,41 @@ fn main() -> ExitCode {
 
     println!("extract {} -> {}", archive.display(), outdir.display());
 
+    // Detach from the console RIGHT BEFORE we hand control to unarc.dll.
+    // Wine 11.8 on macOS returns ACCESS_DENIED for IOCTL_CONDRV_GET_MODE
+    // on the default console attached to a console-subsystem PE.
+    // unarc.dll misreads that as "interactive console" and spins up a
+    // progress UI thread that deadlocks (call chain ends in
+    // select(timeout=infinite) on an event that never signals).
+    // With FreeConsole called, GetConsoleMode returns
+    // ERROR_INVALID_HANDLE, which unarc handles by skipping its
+    // progress UI and going straight to file-mode output through our
+    // callback. No-op on real Windows when no console is inherited.
+    //
+    // Flushing stdout first so our setup prints make it out before we
+    // sever the console handle. Status prints AFTER this point go to
+    // an opened log file instead.
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
+    let _ = std::io::stderr().flush();
+    unsafe extern "system" {
+        fn FreeConsole() -> i32;
+    }
+    let _ = unsafe { FreeConsole() };
+
+    let log_path = std::env::var_os("CELLAR_FREEARC_LOG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir().join("cellar-freearc.log"));
+    let mut log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .ok();
+
+    if let Some(ref mut f) = log {
+        let _ = writeln!(f, "cellar-freearc starting extract -> {}", outdir.display());
+    }
+
     let rc = unsafe {
         extract(
             progress_callback,
@@ -146,7 +165,11 @@ fn main() -> ExitCode {
         )
     };
 
-    println!("FreeArcExtract returned {}", rc);
+    if let Some(ref mut f) = log {
+        let _ = writeln!(f, "FreeArcExtract returned {}", rc);
+    }
+    eprintln!("FreeArcExtract returned {}", rc);
+    eprintln!("(log file: {})", log_path.display());
 
     // Leak the library on purpose. unarc.dll's DllMain DETACH path
     // page-faults when wine tears it down after main(); avoiding the
