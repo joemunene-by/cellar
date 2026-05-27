@@ -1,0 +1,20 @@
+[package]
+name = "cellar-freearc-native"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Pure-Rust reader for FreeArc archive format, the container FitGirl repacks use. No wine dependency for archives that only use open algorithms (storing, LZMA, LZ4, zstd, srep). Hybrid mode invokes the closed-source CLS plugin DLLs under wine for FitGirl-custom algorithms (lolzi, lolzx, lolly, lollypop)."
+
+[dependencies]
+lzma-rs = "0.3"
+crc32fast = "1.4"
+clap = { version = "4", features = ["derive"] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = 3
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
