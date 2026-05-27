@@ -1,81 +1,48 @@
 //! Headless wrapper around `unarc.dll`'s `FreeArcExtract` export.
 //!
-//! FitGirl repacks ship a 32-bit `unarc.dll` (FreeArc decompressor)
-//! that ISDone.dll normally drives from inside the Inno Setup wizard.
-//! On Apple Silicon Macs that wizard is unreachable: wine 11's
-//! winemac.drv returns an HWND that FitGirl's `botva2.dll` cannot
-//! subclass, and the install dies with Win32 error 1400 before any
-//! file is written.
-//!
-//! This binary side-steps the wizard entirely. We load `unarc.dll`
-//! ourselves, call `FreeArcExtract` with a progress callback, and
-//! print the same kind of "filename / total / wrote" lines a CLI
-//! decompressor would. No window, no subclass, no error 1400.
-//!
-//! Build (cross-compile):
-//!   rustup target add i686-pc-windows-gnu
-//!   apt install mingw-w64       # or: brew install mingw-w64
-//!   cargo build --release --target i686-pc-windows-gnu
-//!
-//! Run (under wine, with `unarc.dll` and the `cls-*` plugins in the
-//! same directory or on PATH):
-//!   wine cellar-freearc.exe fg-01.bin C:\\Games\\CoD-MW3
-//!
-//! Stable exit codes:
-//!   0   — extraction succeeded
-//!   2   — bad CLI usage
-//!   3   — could not load unarc.dll or find FreeArcExtract
-//!   4   — FreeArcExtract returned a nonzero error code
+//! See README.md for the why.
 
 use std::env;
 use std::ffi::CString;
+use std::mem;
 use std::os::raw::{c_char, c_int};
 use std::path::PathBuf;
 use std::process::ExitCode;
-use std::ptr;
 
 use libloading::{Library, Symbol};
 
-// FreeArcExtract's progress callback. The DLL invokes it many times
-// per archive with one of these `what` tags:
+// Callback FreeArc invokes during extraction. The DLL was compiled
+// with __cdecl in upstream FreeArc.h, so we match that. Tags we have
+// observed in the wild:
 //
 //   "filename" — int1 is the about-to-extract file's size in bytes,
-//                str is the destination filename (UTF-8).
-//   "total"    — int1 is bytes processed, int2 is bytes total
-//                (across the whole archive). Fires periodically.
-//   "read"     — int1, int2: bytes read from the archive so far.
-//   "write"    — int1, int2: bytes written to disk so far.
-//   "error"    — str is the error message, int1 is the FreeArc
-//                error code.
+//                str is the destination filename.
+//   "total"    — int1 / int2: bytes done / bytes total over the
+//                whole archive. Fires periodically.
+//   "read"     — int1 / int2: bytes read from the archive so far.
+//   "write"    — int1 / int2: bytes written to disk so far.
+//   "error"    — str is the error message, int1 is the FreeArc error
+//                code.
 //
-// Returning 0 continues; nonzero aborts the extraction.
-type CallbackFn =
-    unsafe extern "C" fn(what: *const c_char, int1: c_int, int2: c_int, str_param: *const c_char) -> c_int;
+// Return 0 to continue, nonzero to abort.
+type CallbackFn = unsafe extern "C" fn(
+    what: *const c_char,
+    int1: c_int,
+    int2: c_int,
+    str_param: *const c_char,
+) -> c_int;
 
-// FreeArcExtract is exported as cdecl variadic in the original
-// FreeArc sources. On the caller side a fixed-arity declaration
-// with the exact arg pattern we use (cmd + flags + "--" + archive +
-// NULL terminator) is ABI-compatible because cdecl puts the burden
-// of stack cleanup on the caller for both variadic and fixed.
-//
-// Args we pass:
-//   cb       — our progress callback
-//   "x"      — extract mode
-//   "-y"     — assume yes on any prompt
-//   "-o+"    — always overwrite existing files
-//   dst      — "-dp" followed by the destination directory
-//   "--"     — end of options sentinel
-//   archive  — path to the .bin file (positional)
-//   NULL     — terminator
+// Inno Setup's FitGirl scripts declare FreeArcExtract as a fixed
+// 4-arg cdecl: (callback, cmd, archive, output_dir). Most other
+// documented Pascal wrappers use the same shape. The original C
+// header is variadic, but FreeArc parses only this many args in
+// practice; passing more reads garbage from the next stack slot
+// and the function returns -1 without ever calling the callback.
 type FreeArcExtractFn = unsafe extern "C" fn(
     cb: CallbackFn,
     cmd: *const c_char,
-    opt_y: *const c_char,
-    opt_overwrite: *const c_char,
-    opt_dst: *const c_char,
-    opt_sep: *const c_char,
     archive: *const c_char,
-    terminator: *const c_char,
+    output_dir: *const c_char,
 ) -> c_int;
 
 unsafe extern "C" fn progress_callback(
@@ -84,8 +51,6 @@ unsafe extern "C" fn progress_callback(
     int2: c_int,
     str_param: *const c_char,
 ) -> c_int {
-    // SAFETY: the DLL hands us C strings it owns for the duration of
-    // the callback. We never store the pointer past return.
     let what_str = unsafe { c_str_to_string(what) };
     let extra_str = unsafe { c_str_to_string(str_param) };
 
@@ -97,8 +62,6 @@ unsafe extern "C" fn progress_callback(
                 println!("progress {}/{} ({:.1}%)", int1, int2, pct);
             }
         }
-        // "read" and "write" fire a lot; only surface every-so-often
-        // to keep stdout from being firehosed.
         "write" => {
             if int1 == int2 && int2 > 0 {
                 println!("wrote {} bytes", int2);
@@ -107,7 +70,7 @@ unsafe extern "C" fn progress_callback(
         "error" => {
             eprintln!("freearc error {}: {}", int1, extra_str);
         }
-        _ => {} // ignore "read" and any future tags
+        other => eprintln!("[cb {}] int1={} int2={} str={:?}", other, int1, int2, extra_str),
     }
     0
 }
@@ -116,7 +79,6 @@ unsafe fn c_str_to_string(p: *const c_char) -> String {
     if p.is_null() {
         return String::new();
     }
-    // SAFETY: caller is the FreeArc DLL passing a NUL-terminated C string.
     unsafe { std::ffi::CStr::from_ptr(p) }
         .to_string_lossy()
         .into_owned()
@@ -126,32 +88,37 @@ fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
     if args.len() != 3 {
         eprintln!("usage: cellar-freearc <archive.bin> <output-dir>");
-        eprintln!("       both unarc.dll and any required cls-*.dll plugins must");
-        eprintln!("       be in the same directory as this binary or on PATH.");
         return ExitCode::from(2);
     }
 
     let archive = PathBuf::from(&args[1]);
     let outdir = PathBuf::from(&args[2]);
 
-    if !archive.exists() {
-        eprintln!("archive not found: {}", archive.display());
-        return ExitCode::from(2);
-    }
     if let Err(err) = std::fs::create_dir_all(&outdir) {
         eprintln!("could not create output dir {}: {}", outdir.display(), err);
         return ExitCode::from(2);
     }
 
-    // Load unarc.dll from the binary's own directory first, then PATH.
-    // SAFETY: libloading::Library::new is unsafe because loading a
-    // shared library can run arbitrary init code. We trust unarc.dll
-    // (it's the standard FitGirl-shipped FreeArc decoder).
+    // Detach from the console BEFORE loading unarc.dll. Wine 11.8 on
+    // macOS returns ACCESS_DENIED for IOCTL_CONDRV_GET_MODE on the
+    // default console attached to a console-subsystem PE. unarc.dll
+    // misreads that as "interactive console" and spins up a progress
+    // UI thread that deadlocks (the call chain ends in
+    // select(timeout=infinite) on a sync event that never signals).
+    // With FreeConsole called, GetConsoleMode returns
+    // ERROR_INVALID_HANDLE, which unarc handles by skipping its
+    // progress UI and going straight to file-mode output through our
+    // callback. Compatible everywhere: on real Windows FreeConsole
+    // is a no-op when there is no inherited console.
+    unsafe extern "system" {
+        fn FreeConsole() -> i32;
+    }
+    let _ = unsafe { FreeConsole() };
+
     let lib = match unsafe { Library::new("unarc.dll") } {
         Ok(l) => l,
         Err(err) => {
             eprintln!("could not load unarc.dll: {}", err);
-            eprintln!("place unarc.dll next to this binary or on PATH.");
             return ExitCode::from(3);
         }
     };
@@ -164,37 +131,32 @@ fn main() -> ExitCode {
         }
     };
 
-    // Build the argv-like list of CStrings. Keep them owned for the
-    // lifetime of the call so the C-side pointers stay valid.
     let c_cmd = CString::new("x").unwrap();
-    let c_y = CString::new("-y").unwrap();
-    let c_overwrite = CString::new("-o+").unwrap();
-    let c_dst = CString::new(format!("-dp{}", outdir.display())).unwrap();
-    let c_sep = CString::new("--").unwrap();
     let c_archive = CString::new(archive.display().to_string()).unwrap();
+    let c_outdir = CString::new(outdir.display().to_string()).unwrap();
 
     println!("extract {} -> {}", archive.display(), outdir.display());
 
-    // SAFETY: every pointer points into a CString we own and keep alive
-    // until after the call returns; the function pointer signature matches
-    // FreeArc's cdecl ABI.
     let rc = unsafe {
         extract(
             progress_callback,
             c_cmd.as_ptr(),
-            c_y.as_ptr(),
-            c_overwrite.as_ptr(),
-            c_dst.as_ptr(),
-            c_sep.as_ptr(),
             c_archive.as_ptr(),
-            ptr::null(),
+            c_outdir.as_ptr(),
         )
     };
 
+    println!("FreeArcExtract returned {}", rc);
+
+    // Leak the library on purpose. unarc.dll's DllMain DETACH path
+    // page-faults when wine tears it down after main(); avoiding the
+    // FreeLibrary call lets the process exit cleanly. The OS will
+    // reclaim the mapping at process exit anyway.
+    mem::forget(extract);
+    mem::forget(lib);
+
     if rc != 0 {
-        eprintln!("FreeArcExtract returned {}", rc);
         return ExitCode::from(4);
     }
-    println!("done");
     ExitCode::SUCCESS
 }
