@@ -112,6 +112,18 @@ fn parse_size(s: &str) -> Option<u32> {
     }
 }
 
+/// True when `decompress` would not return `UnsupportedCompressor`
+/// for this method string. Cheap, no decoding — handy for UI peek
+/// commands that want to show "we can extract this archive natively"
+/// without actually doing it.
+pub fn is_supported(method: &str) -> bool {
+    method == "storing"
+        || method == "lzma"
+        || method.starts_with("lzma:")
+        || method == "zstd"
+        || method.starts_with("zstd:")
+}
+
 /// CRC-32 (pkzip / IEEE 802.3 polynomial) over a byte slice. FreeArc
 /// uses this everywhere it stores a CRC.
 pub fn crc32(data: &[u8]) -> u32 {
@@ -153,5 +165,17 @@ mod tests {
     fn unknown_codec_returns_unsupported() {
         let err = decompress("lolzi", b"", 0).err().unwrap();
         assert!(matches!(err, ArcError::UnsupportedCompressor(_)));
+    }
+
+    #[test]
+    fn is_supported_matches_dispatch() {
+        assert!(is_supported("storing"));
+        assert!(is_supported("lzma"));
+        assert!(is_supported("lzma:mfbt4:d1m"));
+        assert!(is_supported("zstd"));
+        assert!(is_supported("zstd:22"));
+        assert!(!is_supported("lolzi"));
+        assert!(!is_supported("srep:lzma"));
+        assert!(!is_supported(""));
     }
 }

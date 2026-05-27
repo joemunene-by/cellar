@@ -21,6 +21,7 @@ tokio = { version = "1", features = ["full"] }
 directories = "5"
 walkdir = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
+cellar-freearc-native = { path = "../freearc-native" }
 
 [features]
 default = ["custom-protocol"]

@@ -7,6 +7,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod archive;
 mod installer;
 mod library;
 mod runtime;
@@ -37,6 +38,7 @@ fn main() {
             runtime::runtime_launch,
             installer::installer_detect,
             installer::installer_run,
+            archive::archive_peek,
         ])
         .run(tauri::generate_context!())
         .expect("cellar: failed to start tauri runtime");
