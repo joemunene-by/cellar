@@ -47,25 +47,32 @@ Plugins (`cls-*.dll`, `cls-*.exe`) must be in the same directory as
 This binary must be 32-bit because FitGirl ships a 32-bit `unarc.dll`
 and a process can only load DLLs of its own bitness.
 
-### macOS (the target platform)
+### option A: mingw (macOS / Linux)
 
 ```
-brew install mingw-w64
+brew install mingw-w64        # macOS
+sudo apt install mingw-w64    # Linux
+
 rustup target add i686-pc-windows-gnu
 cd freearc-shim
 cargo build --release --target i686-pc-windows-gnu
 ```
 
-Output: `target/i686-pc-windows-gnu/release/cellar-freearc.exe`
+### option B: zigbuild (no mingw needed, just Python)
 
-### Linux
+Useful if you do not have homebrew / sudo, or want the build to be
+fully user-mode. Verified producing a working 396 KB PE32 binary
+on Linux without any system packages.
 
 ```
-sudo apt install mingw-w64
+pip install ziglang cargo-zigbuild     # or: cargo install cargo-zigbuild
 rustup target add i686-pc-windows-gnu
 cd freearc-shim
-cargo build --release --target i686-pc-windows-gnu
+cargo zigbuild --release --target i686-pc-windows-gnu
 ```
+
+Either path drops the binary at:
+`target/i686-pc-windows-gnu/release/cellar-freearc.exe`
 
 ## run
 
