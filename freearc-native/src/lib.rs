@@ -20,6 +20,7 @@
 //! invocation in a separate crate when we get there.
 
 pub mod decompress;
+pub mod dir;
 pub mod error;
 pub mod footer;
 pub mod varint;
@@ -128,4 +129,22 @@ fn read_u32_le(buf: &[u8], pos: &mut usize) -> Result<u32> {
 /// Convenience: render the block-type code as a 6-character label.
 pub fn type_label(t: u8) -> &'static str {
     block_type::name(t)
+}
+
+/// Read a control block's compressed bytes from disk and decompress
+/// them per its declared compressor.
+pub fn read_control_block<R: Read + Seek>(
+    r: &mut R,
+    footer: &LocalDescriptor,
+    entry: &BlockEntry,
+) -> Result<Vec<u8>> {
+    let abs_pos = footer
+        .block_pos
+        .checked_sub(entry.rel_pos)
+        .ok_or(crate::error::ArcError::Truncated)?;
+    use std::io::SeekFrom;
+    r.seek(SeekFrom::Start(abs_pos))?;
+    let mut buf = vec![0u8; entry.compsize as usize];
+    r.read_exact(&mut buf)?;
+    crate::decompress::decompress(&entry.compressor, &buf, entry.origsize)
 }
