@@ -149,11 +149,26 @@ What works today:
   paths, sizes, mtimes, CRC-32s
 - per-file extraction with CRC verification
 
-What it does NOT do (yet): decode the closed-source CLS plugins
-(`lolzi`, `lolzx`, `lolly`, `lollypop`) that FitGirl uses for their
-heaviest data blocks. The peek path still works on those archives (DIR
-blocks use lzma, not lollypop), so users see the file list even when
-extraction needs the hybrid wine path.
+For the closed-source CLS plugins (`lolzi`, `lolzx`, `lolly`,
+`lollypop`) FitGirl uses on the heaviest data blocks, there is a
+hybrid path: a tiny PE32 helper (`freearc-cls-host/`) loads the
+matching `cls-*.dll` directly via `libloading` and runs `ClsMain`
+behind a stdin/stdout pipe, bypassing `unarc.dll`'s console-probe
+deadlock entirely. The peek path always works regardless (DIR
+blocks use lzma, not lollypop), so users see the file list before
+committing to any install.
+
+Setup is one script:
+
+```
+scripts/cls-setup.sh                  # build host + stage cls-*.dll
+                                       # from any wine bottle
+```
+
+It builds `cellar-freearc-cls-host.exe`, scans `~/.cellar/bottles/`
+for any `cls-*.dll` that an earlier installer run left in temp,
+copies them to `~/.cellar/cls/`, and prints the env vars to add
+(`CELLAR_CLS_HOST`, `CELLAR_CLS_DIR`).
 
 Standalone CLIs:
 

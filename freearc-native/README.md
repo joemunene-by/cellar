@@ -70,14 +70,19 @@ d              0 00000000 solid=0   miles
 - Phase 7a — `archive_peek` Tauri command on the cellar side, backed
   by this crate via a path dep. Renderer can list files in any
   FreeArc archive without invoking wine.
-- Phase 6 (planned) — hybrid wine path for `lolzi`, `lolzx`, `lolly`,
-  `lollypop`. Loads the matching `cls-*.dll` via libloading and
-  calls its decode entry directly, bypassing `unarc.dll`'s wedged
-  outer loop.
-- Phase 7b (planned) — UI hook on cellar's installer page: a
-  "Preview contents" button that opens a file-list pane via
-  `archive_peek`, so users see what's in a 20+ GB bin before
-  committing to the install.
+- Phase 7b — UI hook on cellar's installer page: "Preview contents"
+  button opens a file-list pane via `archive_peek`, codec badges
+  show native / hybrid / unsupported per codec.
+- Phase 6a — hybrid wine path for single-codec CLS calls
+  (`lolzi`, `lolzx`, `lolly`, `lollypop`, `srep`, `delta`). Dispatch
+  in `cls_host.rs` shells out to the sibling
+  `cellar-freearc-cls-host` PE32 binary under wine. Configured via
+  `CELLAR_CLS_HOST` + `CELLAR_CLS_DIR` env vars; falls back cleanly
+  to `UnsupportedCompressor` when either is missing.
+- Phase 6b (planned) — chain handling. FitGirl's typical method is
+  `srep+dispack+delta+lollypop`, applied left-to-right at encode
+  time; decode walks the chain right-to-left. The single-codec
+  path is the building block.
 
 ## references
 
