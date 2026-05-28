@@ -115,7 +115,17 @@ pub fn decompress_via_host(method: &str, compressed: &[u8], _orig_size: u64) -> 
             ))
         })?;
 
-    let mut child = Command::new(&wine_bin)
+    // FitGirl CLS plugins are 2-piece: the .dll is a thin CLS shim
+    // that fork-exec's a sibling worker (`cls-NAME_x64.exe` /
+    // `cls-NAME_x86.exe`) for the actual decompression. The shim
+    // calls CreateProcess on a bare basename, so wine resolves it
+    // against the calling process's "current directory" (Windows
+    // search rule). If we spawn wine from cellar/target/release,
+    // the sidecar lookup misses. Setting current_dir on the wine
+    // invocation makes wine inherit the DLL directory as its
+    // Windows CWD, and the sidecars resolve.
+    let mut command = Command::new(&wine_bin);
+    command
         .arg(&host_exe)
         .arg("--dll")
         .arg(&dll_path)
@@ -123,14 +133,17 @@ pub fn decompress_via_host(method: &str, compressed: &[u8], _orig_size: u64) -> 
         .arg(params)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| {
-            ArcError::UnsupportedCompressor(format!(
-                "{}: failed to spawn {} {}: {}",
-                method, wine_bin, host_exe, e
-            ))
-        })?;
+        .stderr(Stdio::piped());
+    if let Some(parent) = dll_path.parent() {
+        command.current_dir(parent);
+    }
+
+    let mut child = command.spawn().map_err(|e| {
+        ArcError::UnsupportedCompressor(format!(
+            "{}: failed to spawn {} {}: {}",
+            method, wine_bin, host_exe, e
+        ))
+    })?;
 
     {
         let stdin = child

@@ -3,9 +3,16 @@
 #
 # What it does:
 #   1. Build cellar-freearc-cls-host.exe (PE32 helper) if missing.
-#   2. Scan the named wine bottle(s) under ~/.cellar/bottles/ for any
-#      cls-*.dll the FitGirl installer left behind in its temp payload.
-#   3. Stage the DLLs into ~/.cellar/cls/ for the dispatch path to find.
+#   2. Scan the named wine bottle(s) under ~/.cellar/bottles/ for a
+#      directory containing the FitGirl plugin staging set (marker
+#      file: cls-lolly.dll). Real-world the directory is named
+#      `cellar-headless` and lives under drive_c.
+#   3. Stage EVERY file from that directory into ~/.cellar/cls/:
+#      cls-*.dll plugins AND their sidecar workers (cls-*_x64.exe,
+#      cls-*_x86.exe) AND companion DLLs (botva2, facompress, etc.).
+#      The 2-piece plugin architecture means the .dll shells out to
+#      the sidecar .exe; without the sidecars, the .dll calls fail
+#      with "failed to start cls-NAME_x64.exe".
 #   4. Print the env-var lines to drop into your shell rc so
 #      freearc-native / cellar / fg-arc-x route closed codecs through
 #      the wine helper.
@@ -32,7 +39,7 @@ else
 fi
 
 echo
-echo "=== 2/3 find cls-*.dll in wine bottle(s) ==="
+echo "=== 2/3 find plugin staging dir in wine bottle(s) ==="
 mkdir -p "$dest_dir"
 found=0
 search_dirs=()
@@ -51,23 +58,47 @@ if [ ${#search_dirs[@]} -eq 0 ]; then
   exit 0
 fi
 
+# Locate the staging dir by its marker file (cls-lolly.dll). Take
+# the first one found. Multiple bottles with their own copy would
+# all work; we just need one full set.
+staging_src=""
 for d in "${search_dirs[@]}"; do
-  echo "scanning $d ..."
-  while IFS= read -r -d '' dll; do
-    name="$(basename "$dll")"
-    cp -f "$dll" "$dest_dir/$name"
-    echo "  staged $name from $dll"
-    found=$((found + 1))
-  done < <(find "$d" -type f -iname 'cls-*.dll' -print0 2>/dev/null)
+  marker="$(find "$d" -type f \( -iname 'cls-lolly.dll' -o -iname 'cls-lollypop.dll' \) -print 2>/dev/null | head -n 1)"
+  if [ -n "$marker" ]; then
+    staging_src="$(dirname "$marker")"
+    echo "found staging dir: $staging_src"
+    break
+  fi
+done
+
+if [ -z "$staging_src" ]; then
+  echo
+  echo "no plugin staging dir found in any bottle."
+  echo "tip: start a FitGirl installer once (it unpacks the DLLs +"
+  echo "     sidecar .exe files to a temp dir under drive_c/users/...)."
+  echo "     cancel before the install completes; the files stay on"
+  echo "     disk. then re-run this script."
+  exit 0
+fi
+
+# Copy EVERYTHING from the staging dir except hidden / VCS noise.
+# The plugin set is ~40 files: cls-*.dll, cls-*_x64.exe,
+# cls-*_x86.exe, botva2.dll, facompress.dll, ISDone.dll, etc.
+echo
+echo "staging files to $dest_dir ..."
+for f in "$staging_src"/*; do
+  [ -f "$f" ] || continue
+  name="$(basename "$f")"
+  case "$name" in
+    .*|*.git*) continue ;;
+  esac
+  cp -f "$f" "$dest_dir/$name"
+  echo "  $name"
+  found=$((found + 1))
 done
 
 if [ "$found" -eq 0 ]; then
-  echo
-  echo "no cls-*.dll found in any bottle."
-  echo "tip: start a FitGirl installer once (it unpacks the DLLs to"
-  echo "     a temp dir under drive_c/users/...). cancel before the"
-  echo "     install completes, then re-run this script. the DLLs"
-  echo "     should still be on disk."
+  echo "(marker found but no files to copy from $staging_src — unusual)"
   exit 0
 fi
 
