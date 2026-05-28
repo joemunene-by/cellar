@@ -87,8 +87,17 @@ git clone https://github.com/joemunene-by/cellar.git
 cd cellar
 ./scripts/setup-gptk.sh    # one-time GPTK + Wine + DXVK install
 npm install
-cargo tauri dev
+cargo tauri dev            # live reload during development
 ```
+
+For a quick release-mode launch without dev tooling overhead:
+
+```sh
+scripts/cellar-launch.sh   # builds frontend + cellar release bin, launches
+```
+
+(Verified on macOS 15 / Apple Silicon: 12 MB arm64 binary, all
+AppKit / WebKit frameworks link cleanly.)
 
 ## layout
 
