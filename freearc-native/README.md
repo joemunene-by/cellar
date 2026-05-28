@@ -1,5 +1,7 @@
 # cellar-freearc-native
 
+[![freearc-native CI](https://github.com/joemunene-by/cellar/actions/workflows/freearc-native.yml/badge.svg)](https://github.com/joemunene-by/cellar/actions/workflows/freearc-native.yml)
+
 Pure-Rust reader for the FreeArc archive container format
 (`.arc`, FitGirl's `fg-*.bin`). No wine, no DLLs, no FFI.
 

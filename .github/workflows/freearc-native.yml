@@ -1,0 +1,51 @@
+name: freearc-native
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'freearc-native/**'
+      - '.github/workflows/freearc-native.yml'
+  pull_request:
+    paths:
+      - 'freearc-native/**'
+
+jobs:
+  test:
+    name: cargo test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: freearc-native
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: freearc-native
+
+      - name: cargo test --release --lib
+        run: cargo test --release --lib
+
+      - name: build all release binaries
+        run: cargo build --release --bins
+
+      - name: round-trip CLI smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/ci-in /tmp/ci-out
+          printf 'hello from ci\n' > /tmp/ci-in/a.txt
+          head -c 4096 /dev/urandom > /tmp/ci-in/b.bin
+          ./target/release/fg-arc-c /tmp/ci-in /tmp/ci.arc
+          ./target/release/fg-arc-ls /tmp/ci.arc
+          ./target/release/fg-arc-files /tmp/ci.arc
+          ./target/release/fg-arc-x /tmp/ci.arc /tmp/ci-out
+          diff -r /tmp/ci-in /tmp/ci-out
+          echo "round-trip OK on ${{ matrix.os }}"
