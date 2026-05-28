@@ -26,6 +26,7 @@ pub mod error;
 pub mod extract;
 pub mod footer;
 pub mod varint;
+pub mod writer;
 
 use std::io::{Read, Seek};
 
