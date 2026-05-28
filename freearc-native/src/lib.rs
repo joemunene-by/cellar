@@ -19,6 +19,7 @@
 //! lolly, lollypop) will route through a wine-side `cls-*.dll`
 //! invocation in a separate crate when we get there.
 
+pub mod cls_host;
 pub mod decompress;
 pub mod dir;
 pub mod error;

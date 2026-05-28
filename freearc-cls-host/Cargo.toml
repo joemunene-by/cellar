@@ -1,0 +1,23 @@
+[package]
+name = "cellar-freearc-cls-host"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Tiny PE32 host that loads a single FreeArc CLS plugin DLL (cls-lolzi, cls-lolzx, cls-lolly, cls-lollypop, etc.) and runs one decompress call. Reads compressed bytes on stdin, writes decompressed bytes on stdout. Designed to be invoked under wine from a Mac / Linux native process, bypassing unarc.dll's wedged outer loop."
+
+[[bin]]
+name = "cellar-freearc-cls-host"
+path = "src/main.rs"
+
+[dependencies]
+libloading = "0.8"
+clap = { version = "4", features = ["derive"] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "z"
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "warn"

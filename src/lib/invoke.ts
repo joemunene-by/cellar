@@ -114,9 +114,14 @@ export interface PeekFile {
   is_dir: boolean;
 }
 
+export type PeekSupport = 'native' | 'hybrid' | 'unsupported';
+
 export interface PeekCodec {
   method: string;
-  supported_natively: boolean;
+  /** "native" works with no help; "hybrid" needs the wine-side CLS
+   *  plugin host plus a matching cls-*.dll; "unsupported" means no
+   *  decode path exists in this version. */
+  support: PeekSupport;
 }
 
 export interface ArchivePeek {

@@ -35,6 +35,15 @@ pub fn decompress(method: &str, compressed: &[u8], orig_size: u64) -> Result<Vec
     if method == "zstd" || method.starts_with("zstd:") {
         return decompress_zstd(compressed, orig_size);
     }
+    // Closed-source CLS plugins (lolzi, lolzx, lolly, lollypop, ...)
+    // get routed through the wine-side helper if the caller has the
+    // CELLAR_CLS_HOST + CELLAR_CLS_DIR env vars pointed at the host
+    // exe and the cls-*.dll directory. The host invocation itself
+    // returns UnsupportedCompressor when the env is missing, so the
+    // caller still sees a clean "unsupported" outcome in that case.
+    if crate::cls_host::looks_like_cls(method) {
+        return crate::cls_host::decompress_via_host(method, compressed, orig_size);
+    }
     Err(ArcError::UnsupportedCompressor(method.to_owned()))
 }
 
@@ -112,16 +121,44 @@ fn parse_size(s: &str) -> Option<u32> {
     }
 }
 
-/// True when `decompress` would not return `UnsupportedCompressor`
-/// for this method string. Cheap, no decoding — handy for UI peek
-/// commands that want to show "we can extract this archive natively"
-/// without actually doing it.
-pub fn is_supported(method: &str) -> bool {
-    method == "storing"
+/// How `decompress` will handle a method string. Cheap predicate
+/// (no decoding) suitable for UI badges that want to tell users
+/// "we can decode this natively" vs "we can decode this if you set
+/// up the wine helper" vs "no chance".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SupportLevel {
+    /// Pure-Rust decoder, always works locally.
+    Native,
+    /// Needs the wine-side CLS plugin host plus a matching
+    /// `cls-*.dll`. The user must set CELLAR_CLS_HOST and
+    /// CELLAR_CLS_DIR for `decompress` to actually try this path.
+    Hybrid,
+    /// No path. `decompress` returns `UnsupportedCompressor`.
+    Unsupported,
+}
+
+/// Classify a method string by how it would be handled. Cheap, no
+/// decoding.
+pub fn support_level(method: &str) -> SupportLevel {
+    if method == "storing"
         || method == "lzma"
         || method.starts_with("lzma:")
         || method == "zstd"
         || method.starts_with("zstd:")
+    {
+        return SupportLevel::Native;
+    }
+    if crate::cls_host::looks_like_cls(method) {
+        return SupportLevel::Hybrid;
+    }
+    SupportLevel::Unsupported
+}
+
+/// True when `decompress` will at least attempt this method string
+/// (Native or Hybrid). Wrapper over `support_level` kept for
+/// existing callers; new code should prefer the explicit enum.
+pub fn is_supported(method: &str) -> bool {
+    !matches!(support_level(method), SupportLevel::Unsupported)
 }
 
 /// CRC-32 (pkzip / IEEE 802.3 polynomial) over a byte slice. FreeArc
@@ -168,14 +205,32 @@ mod tests {
     }
 
     #[test]
+    fn support_level_classifies_correctly() {
+        assert_eq!(support_level("storing"), SupportLevel::Native);
+        assert_eq!(support_level("lzma"), SupportLevel::Native);
+        assert_eq!(support_level("lzma:mfbt4:d1m"), SupportLevel::Native);
+        assert_eq!(support_level("zstd"), SupportLevel::Native);
+        assert_eq!(support_level("zstd:22"), SupportLevel::Native);
+
+        assert_eq!(support_level("lolzi"), SupportLevel::Hybrid);
+        assert_eq!(support_level("lollypop:d1024"), SupportLevel::Hybrid);
+
+        // Chains are not handled by the single-codec hybrid path yet.
+        assert_eq!(support_level("srep+dispack+lollypop"), SupportLevel::Unsupported);
+        assert_eq!(support_level(""), SupportLevel::Unsupported);
+    }
+
+    #[test]
     fn is_supported_matches_dispatch() {
+        // Native codecs.
         assert!(is_supported("storing"));
-        assert!(is_supported("lzma"));
         assert!(is_supported("lzma:mfbt4:d1m"));
-        assert!(is_supported("zstd"));
         assert!(is_supported("zstd:22"));
-        assert!(!is_supported("lolzi"));
-        assert!(!is_supported("srep:lzma"));
+        // Hybrid codecs are reported supported even if the host env
+        // isn't set; runtime will surface the missing env later.
+        assert!(is_supported("lolzi"));
+        // Truly unknown.
         assert!(!is_supported(""));
+        assert!(!is_supported("totally_made_up_codec_xyz"));
     }
 }

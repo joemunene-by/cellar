@@ -862,16 +862,22 @@ textarea.input {
   letter-spacing: 0.04em;
 }
 
-.codec-badge-ok {
+.codec-badge-native {
   background: #143018;
   color: #6cd97c;
   border: 1px solid #1f5c2b;
 }
 
-.codec-badge-wine {
+.codec-badge-hybrid {
   background: #2e1f0e;
   color: #e0a04e;
   border: 1px solid #5c411f;
+}
+
+.codec-badge-unsupported {
+  background: #2e1010;
+  color: #e07070;
+  border: 1px solid #5c2020;
 }
 
 .archive-peek-warning {

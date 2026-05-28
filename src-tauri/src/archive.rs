@@ -15,7 +15,7 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use cellar_freearc_native::{
-    decompress::is_supported,
+    decompress::{support_level, SupportLevel},
     dir,
     error::ArcError,
     footer::block_type,
@@ -44,10 +44,10 @@ pub struct PeekFile {
 #[derive(Serialize)]
 pub struct PeekCodec {
     pub method: String,
-    /// True when this crate has a native Rust decoder for the codec
-    /// chain. When false, the file bytes can only be retrieved via
-    /// the wine + cls-*.dll hybrid path.
-    pub supported_natively: bool,
+    /// Honest 3-state: "native" (always works), "hybrid" (needs the
+    /// wine helper + a cls-*.dll), "unsupported" (we cannot decode
+    /// these bytes at all yet, even with wine).
+    pub support: &'static str,
 }
 
 #[derive(Serialize)]
@@ -136,8 +136,12 @@ pub fn archive_peek(path: String) -> Result<ArchivePeek, ArchiveError> {
     let codecs: Vec<PeekCodec> = codecs_seen
         .into_iter()
         .map(|m| {
-            let supported_natively = is_supported(&m);
-            PeekCodec { method: m, supported_natively }
+            let support = match support_level(&m) {
+                SupportLevel::Native => "native",
+                SupportLevel::Hybrid => "hybrid",
+                SupportLevel::Unsupported => "unsupported",
+            };
+            PeekCodec { method: m, support }
         })
         .collect();
 

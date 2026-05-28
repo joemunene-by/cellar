@@ -598,13 +598,13 @@ function ArchivePeekPane({
         <span className="meta-label">codecs</span>
         <ul>
           {peek.codecs.map((c, i) => (
-            <li key={i} className={c.supported_natively ? 'codec-ok' : 'codec-needs-wine'}>
+            <li key={i} className={`codec-${c.support}`}>
               <code>{c.method}</code>
-              {c.supported_natively ? (
-                <span className="codec-badge codec-badge-ok">native</span>
-              ) : (
-                <span className="codec-badge codec-badge-wine">needs wine</span>
-              )}
+              <span className={`codec-badge codec-badge-${c.support}`}>
+                {c.support === 'native' && 'native'}
+                {c.support === 'hybrid' && 'needs wine + cls dll'}
+                {c.support === 'unsupported' && 'unsupported'}
+              </span>
             </li>
           ))}
         </ul>
