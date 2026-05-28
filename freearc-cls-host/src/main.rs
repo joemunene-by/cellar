@@ -49,10 +49,43 @@ const CLS_DECOMPRESS: c_int = 4;
 const CLS_MALLOC: c_int = 1;
 const CLS_FREE: c_int = 2;
 const CLS_GET_PARAMSTR: c_int = 3;
+const CLS_SET_PARAMSTR: c_int = 4;
+const CLS_THREADS: c_int = 5;
+const CLS_MEMORY: c_int = 6;
+const CLS_DECOMPRESSION_MEMORY: c_int = 7;
+const CLS_DECOMPRESSOR_VERSION: c_int = 8;
+const CLS_BLOCK: c_int = 9;
+const CLS_EXPAND_DATA: c_int = 10;
+const CLS_ID: c_int = 101;
+const CLS_VERSION: c_int = 102;
+const CLS_THREAD_SAFE: c_int = 103;
 const CLS_FULL_READ: c_int = 4096;
 const CLS_PARTIAL_READ: c_int = 5120;
 const CLS_FULL_WRITE: c_int = 6144;
 const CLS_PARTIAL_WRITE: c_int = 7168;
+
+fn op_name(op: c_int) -> &'static str {
+    match op {
+        CLS_MALLOC => "MALLOC",
+        CLS_FREE => "FREE",
+        CLS_GET_PARAMSTR => "GET_PARAMSTR",
+        CLS_SET_PARAMSTR => "SET_PARAMSTR",
+        CLS_THREADS => "THREADS",
+        CLS_MEMORY => "MEMORY",
+        CLS_DECOMPRESSION_MEMORY => "DECOMPRESSION_MEMORY",
+        CLS_DECOMPRESSOR_VERSION => "DECOMPRESSOR_VERSION",
+        CLS_BLOCK => "BLOCK",
+        CLS_EXPAND_DATA => "EXPAND_DATA",
+        CLS_ID => "ID",
+        CLS_VERSION => "VERSION",
+        CLS_THREAD_SAFE => "THREAD_SAFE",
+        CLS_FULL_READ => "FULL_READ",
+        CLS_PARTIAL_READ => "PARTIAL_READ",
+        CLS_FULL_WRITE => "FULL_WRITE",
+        CLS_PARTIAL_WRITE => "PARTIAL_WRITE",
+        _ => "<unknown>",
+    }
+}
 
 type ClsCallback =
     unsafe extern "C" fn(instance: *mut c_void, op: c_int, ptr: *mut c_void, n: c_int) -> c_int;
@@ -75,6 +108,12 @@ struct Args {
     /// Empty is fine; some plugins have sensible defaults.
     #[arg(long, default_value = "")]
     params: String,
+
+    /// Log every CLS callback the plugin makes to stderr, with the
+    /// op name and arg. Use this to learn which ops a new plugin
+    /// requires before extending the callback table.
+    #[arg(long)]
+    trace_callbacks: bool,
 }
 
 /// Held in the `instance` slot of every callback. The CLS plugin
@@ -89,6 +128,9 @@ struct CallbackCtx {
     // C string passed back on CLS_GET_PARAMSTR queries. Owned so the
     // pointer stays valid across callbacks.
     params: CString,
+    // If true, every callback dispatch is logged to stderr with its
+    // op name + n value + return code.
+    trace: bool,
 }
 
 /// CLS callback dispatch. Single function pointer the plugin calls
@@ -103,7 +145,7 @@ unsafe extern "C" fn cls_callback(
         return CLS_ERROR_NOT_IMPLEMENTED;
     }
     let ctx = unsafe { &mut *(instance as *mut CallbackCtx) };
-    match op {
+    let rc = match op {
         CLS_FULL_READ | CLS_PARTIAL_READ => {
             // Plugin wants up to n bytes in *ptr. Return bytes read;
             // 0 means EOF.
@@ -129,25 +171,24 @@ unsafe extern "C" fn cls_callback(
             // Caller-allocated buffer of size n at *ptr; we strncpy in.
             let cap = if n < 0 { 0 } else { n as usize };
             if cap == 0 {
-                return CLS_OK;
-            }
-            let bytes = ctx.params.as_bytes_with_nul();
-            let copy_len = bytes.len().min(cap);
-            unsafe {
-                let dst = std::slice::from_raw_parts_mut(ptr as *mut u8, copy_len);
-                dst.copy_from_slice(&bytes[..copy_len]);
-                // Ensure null-termination if we truncated.
-                if copy_len == cap && cap > 0 && bytes.len() > cap {
-                    *(ptr as *mut u8).add(cap - 1) = 0;
+                CLS_OK
+            } else {
+                let bytes = ctx.params.as_bytes_with_nul();
+                let copy_len = bytes.len().min(cap);
+                unsafe {
+                    let dst = std::slice::from_raw_parts_mut(ptr as *mut u8, copy_len);
+                    dst.copy_from_slice(&bytes[..copy_len]);
+                    if copy_len == cap && cap > 0 && bytes.len() > cap {
+                        *(ptr as *mut u8).add(cap - 1) = 0;
+                    }
                 }
+                CLS_OK
             }
-            CLS_OK
         }
         CLS_MALLOC => {
             // Plugin asks us to allocate n bytes and store the pointer
-            // at *(void**)ptr. We leak the allocation; the plugin
-            // is supposed to round-trip it through CLS_FREE below,
-            // but we let it ride either way (process lives milliseconds).
+            // at *(void**)ptr. We leak the allocation; CLS_FREE below
+            // is a no-op (process lives milliseconds).
             let bytes_wanted = if n <= 0 { 0 } else { n as usize };
             let v: Vec<u8> = vec![0u8; bytes_wanted];
             let boxed = v.into_boxed_slice();
@@ -157,18 +198,28 @@ unsafe extern "C" fn cls_callback(
             }
             CLS_OK
         }
-        CLS_FREE => {
-            // Companion to CLS_MALLOC. We don't reclaim — see above.
-            // Returning OK is the right answer; the alternative would
-            // need a size-tracking allocator.
-            CLS_OK
-        }
-        _ => {
-            // Every other op (CLS_THREADS, CLS_MEMORY, CLS_BLOCK, ...)
-            // is metadata. Plugins handle NOT_IMPLEMENTED gracefully.
-            CLS_ERROR_NOT_IMPLEMENTED
-        }
+        CLS_FREE => CLS_OK,
+        // Metadata queries the plugin makes about its environment.
+        // Returning sensible defaults instead of NOT_IMPLEMENTED, in
+        // case the plugin treats NOT_IMPLEMENTED as a hard failure.
+        CLS_THREADS => 1, // single-threaded
+        CLS_MEMORY | CLS_DECOMPRESSION_MEMORY => 0, // use plugin defaults
+        CLS_THREAD_SAFE => 1, // we serialise all calls
+        CLS_ID | CLS_VERSION | CLS_DECOMPRESSOR_VERSION => 0,
+        CLS_BLOCK | CLS_EXPAND_DATA | CLS_SET_PARAMSTR => CLS_OK,
+        _ => CLS_ERROR_NOT_IMPLEMENTED,
+    };
+    if ctx.trace {
+        eprintln!(
+            "[cls-trace] op={} (0x{:x}) n={} ptr={:p} rc={}",
+            op_name(op),
+            op,
+            n,
+            ptr,
+            rc
+        );
     }
+    rc
 }
 
 fn main() -> ExitCode {
@@ -191,11 +242,25 @@ fn main() -> ExitCode {
         }
     };
 
+    // CELLAR_CLS_TRACE env wins over --trace-callbacks so the
+    // tracing can be enabled end-to-end (env propagates from the
+    // Rust caller through wine into us) without touching the
+    // dispatch code in freearc-native.
+    let trace = args.trace_callbacks || std::env::var("CELLAR_CLS_TRACE").is_ok();
+    if trace {
+        eprintln!(
+            "[cls-trace] host start: dll={} params={:?}",
+            args.dll.display(),
+            args.params
+        );
+    }
+
     let mut ctx = Box::new(CallbackCtx {
         in_buf,
         in_pos: 0,
         out_buf: Vec::new(),
         params,
+        trace,
     });
 
     // SAFETY: libloading::Library + ClsMain ABI. We hold the Library
@@ -214,8 +279,19 @@ fn main() -> ExitCode {
         });
 
         let ctx_ptr = ctx.as_mut() as *mut CallbackCtx as *mut c_void;
-        let _ = cls_main(CLS_INIT, cls_callback, ctx_ptr);
+        if trace {
+            eprintln!("[cls-trace] ClsMain(CLS_INIT)");
+        }
+        let init_rc = cls_main(CLS_INIT, cls_callback, ctx_ptr);
+        if trace {
+            eprintln!("[cls-trace] ClsMain(CLS_INIT) returned {}", init_rc);
+            eprintln!("[cls-trace] ClsMain(CLS_DECOMPRESS) — input {} bytes", ctx.in_buf.len());
+        }
         let rc = cls_main(CLS_DECOMPRESS, cls_callback, ctx_ptr);
+        if trace {
+            eprintln!("[cls-trace] ClsMain(CLS_DECOMPRESS) returned {}", rc);
+            eprintln!("[cls-trace] ClsMain(CLS_DONE)");
+        }
         let _ = cls_main(CLS_DONE, cls_callback, ctx_ptr);
 
         std::mem::forget(lib);
