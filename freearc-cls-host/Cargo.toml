@@ -18,6 +18,15 @@ strip = true
 lto = true
 codegen-units = 1
 opt-level = "z"
+# panic = "abort" sidesteps the i686-pc-windows-gnu cross-link bust
+# where rustc emits calls to _Unwind_Resume / _Unwind_RaiseException
+# that Homebrew's mingw-w64 14.x toolchain does not surface as
+# resolvable symbols. We are a one-shot CLI; we do not need stack
+# unwinding on panic, abort-on-panic is the correct semantics anyway.
+panic = "abort"
+
+[profile.dev]
+panic = "abort"
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "warn"
