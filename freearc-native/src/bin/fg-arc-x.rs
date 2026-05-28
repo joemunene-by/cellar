@@ -99,6 +99,7 @@ fn main() -> ExitCode {
                 }
             };
 
+        let mut last_skip_detail: Option<String> = None;
         for o in &outcomes {
             match o {
                 FileOutcome::Wrote(p) => {
@@ -106,8 +107,16 @@ fn main() -> ExitCode {
                         println!("wrote   {}", p.display());
                     }
                 }
-                FileOutcome::SkippedUnsupported { path, compressor } => {
+                FileOutcome::SkippedUnsupported { path, compressor, detail } => {
                     println!("skipped {}  (codec={})", path.display(), compressor);
+                    // The detail string carries the actual cause from
+                    // the decompressor. Print once per change (all
+                    // files in a single solid block share one cause,
+                    // so this collapses to one line per block).
+                    if last_skip_detail.as_ref() != Some(detail) {
+                        eprintln!("  detail: {}", detail);
+                        last_skip_detail = Some(detail.clone());
+                    }
                 }
                 FileOutcome::CrcMismatch { path, expected, actual } => {
                     println!(
@@ -116,6 +125,7 @@ fn main() -> ExitCode {
                         expected,
                         actual
                     );
+                    last_skip_detail = None;
                 }
             }
         }

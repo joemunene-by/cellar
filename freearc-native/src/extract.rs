@@ -27,10 +27,14 @@ pub enum FileOutcome {
     /// Wrote the file (or created the directory).
     Wrote(PathBuf),
     /// Skipped because the file's solid block uses a codec we do not
-    /// have a native decoder for.
+    /// have a native decoder for. `detail` is the verbatim error
+    /// string from the decompressor — for the CLS hybrid path this
+    /// is where you find out whether the env was unset, wine was
+    /// missing, the DLL failed to load, or ClsMain returned an error.
     SkippedUnsupported {
         path: PathBuf,
         compressor: String,
+        detail: String,
     },
     /// Wrote the file but its CRC did not match the directory entry.
     /// The bytes are still on disk; the caller decides whether to
@@ -106,12 +110,13 @@ pub fn extract_dir_block<R: Read + Seek>(
         // Decompress, or skip the whole block on UnsupportedCompressor.
         let raw = match decompress(&solid.compressor, &comp, origsize) {
             Ok(v) => v,
-            Err(ArcError::UnsupportedCompressor(_)) => {
+            Err(ArcError::UnsupportedCompressor(detail)) => {
                 for fe in slice {
                     let full = parsed.full_path(fe);
                     outcomes.push(FileOutcome::SkippedUnsupported {
                         path: out_dir.join(&full),
                         compressor: solid.compressor.clone(),
+                        detail: detail.clone(),
                     });
                     stats.skipped_unsupported += 1;
                 }
