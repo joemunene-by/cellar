@@ -184,17 +184,19 @@ for the format spec and reader internals.
 
 ## roadmap
 
-**v0.1 (today):** Tauri 2 + Rust shell. Wine bottle create / list /
-remove via shell. Plain installer launch. Manual library entry.
-Repack detection (FitGirl / DODI / KaOs / Inno Setup) via folder
-heuristics. `archive_peek` exposes the native FreeArc reader to the
-UI; UI hook still pending.
+**v0.1:** Tauri 2 + Rust shell. Wine bottle create / list / remove.
+Plain installer launch. Manual library entry. Repack detection
+(FitGirl / DODI / KaOs / Inno Setup) via folder heuristics.
 
-**v0.2:** Hybrid wine path for the closed-source CLS plugins
-(`lolzi`, `lolzx`, `lolly`, `lollypop`). Loads each `cls-*.dll`
-under wine directly, bypassing `unarc.dll`'s outer state machine
-(which wedges on the wine-on-Mac console-IOCTL bug — see issue
-notes below). Unlocks native extraction for the full FitGirl set.
+**v0.2 (current):** Pure-Rust FreeArc reader (`freearc-native`)
+covering footer-first parsing, the full directory block, per-file
+extraction with CRC, and decoders for `storing` / `lzma:*` / `zstd`.
+`archive_peek` Tauri command + UI "Preview contents" pane lets
+users see what's in a `fg-*.bin` before committing to install.
+CLS plugin host (`freearc-cls-host`) plus dispatch wiring for the
+hybrid path covers the *architecture* for the closed codecs
+(`lolzi`, `lolzx`, `lolly`, `lollypop`); see "known issues" below
+for why the round-trip currently does not complete on wine-on-Mac.
 
 **v0.3:** Polished library. Card grid, last-played, total play time,
 launch button, delete game. Per-game settings (DXVK toggle, ESYNC,
@@ -227,15 +229,46 @@ event nothing signals.
 
 Tested mitigations (stack patch, comctl32 native, WinXP mode,
 virtual desktop, FreeConsole) do not fix the underlying winemac.drv
-bug. The native FreeArc reader (above) is the planned path forward:
-once the hybrid CLS plugin loader lands in v0.2, cellar will route
-around `unarc.dll` entirely for FitGirl bins.
+bug. cellar v0.2 routes around it for archive inspection (see
+above), but full extraction of `lollypop`-using FitGirl bins still
+needs the workaround below.
+
+### CLS plugin shim IPC blocked on wine-on-Mac
+
+The architecture for the CLS hybrid path is correct and proven end-
+to-end: `cls-smoke.sh` confirms wine + `cellar-freearc-cls-host.exe`
++ every staged `cls-*.dll` link and dispatch `ClsMain` cleanly
+(`PASS` on all 8 plugins shipped with FitGirl). What does NOT work
+is the FitGirl plugin's internal 2-piece design.
+
+Every `cls-*.dll` FitGirl ships is a thin shim that fork-exec's a
+sibling worker (`cls-NAME_x64.exe` / `cls-NAME_x86.exe`) and
+exchanges data with it via Windows shared-memory IPC (named
+`CreateFileMapping` + event handles). On wine 11.x (both Staging and
+Devel builds) running on macOS 15 / Apple Silicon, that IPC fails:
+
+- with the real `_x64.exe` sidecar, the shim's `CreateFileMapping`
+  call returns a notification "can't open read file mapping" and
+  the call hangs waiting on a never-signalled event;
+- with `_x86.exe` aliased as `_x64.exe`, the shim spawns it, then
+  hangs the same way during the shared-memory handshake;
+- with only `_x86.exe` present (real, not aliased), the shim's
+  hard-coded `CreateProcess("cls-NAME_x64.exe")` fails and
+  `ClsMain(CLS_DECOMPRESS)` returns -1 instantly *with zero
+  callbacks fired* — proving the shim aborts before touching its
+  decoder.
+
+Verified by tracing every callback dispatch in cls-host
+(`CELLAR_CLS_TRACE=1`). Only `CLS_INIT` (which succeeds) and
+`CLS_DECOMPRESS` (which immediately returns -1) are reached.
 
 Workaround today: use a repack that uses only open codecs
 (`storing`, `lzma`, `zstd`) — the existing `fg-arc-x` CLI extracts
 those archives directly. For `lollypop`-based FitGirl bins, manual
 extraction on a Windows machine (or under bottled wine on Linux
-with the older driver) is the only path until v0.2.
+with the older driver) is the only path. Re-investigating once
+wine 12 or CrossOver 25 ships an Apple-Silicon-clean shared memory
+implementation.
 
 ### 32-bit Inno Setup stubs
 
