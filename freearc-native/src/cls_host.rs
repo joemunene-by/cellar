@@ -29,16 +29,20 @@ use crate::error::{ArcError, Result};
 /// Codecs we know live in a `cls-*.dll` (and so are candidates for
 /// the hybrid path). This is not exhaustive — any plugin that ships
 /// with a `cls-<name>.dll` will work, but we only auto-dispatch the
-/// ones FitGirl actually uses.
+/// ones FitGirl actually uses. List confirmed against a real
+/// FitGirl install on 2026-05-28 (cls-*.dll set found in
+/// drive_c/cellar-headless/).
 const KNOWN_CLS_CODECS: &[&str] = &[
     "lolzi",
     "lolzx",
     "lolly",
     "lollypop",
+    "lollypop2",
     "srep",
     "delta",
     "dispack",
     "dispack070",
+    "msc",
 ];
 
 /// True when `method` looks like a single CLS codec call (no chain)
@@ -85,15 +89,31 @@ pub fn decompress_via_host(method: &str, compressed: &[u8], _orig_size: u64) -> 
     })?;
     let wine_bin = env::var("CELLAR_WINE").unwrap_or_else(|_| "wine".to_owned());
 
-    let mut dll_path = PathBuf::from(&dll_dir);
-    dll_path.push(format!("cls-{}.dll", codec));
-    if !dll_path.exists() {
-        return Err(ArcError::UnsupportedCompressor(format!(
-            "{}: {} not found in CELLAR_CLS_DIR",
-            method,
-            dll_path.display()
-        )));
-    }
+    // FitGirl ships the cls-*.dll set with mixed casing
+    // (e.g. cls-lolly.dll alongside CLS-srep.dll, CLS-MSC.dll).
+    // macOS / HFS+ is case-insensitive so a lowercase lookup works,
+    // but Linux is not. Try the casings we have actually seen in the
+    // wild before giving up.
+    let dir = PathBuf::from(&dll_dir);
+    let candidates = [
+        format!("cls-{}.dll", codec),
+        format!("CLS-{}.dll", codec),
+        format!("cls-{}.dll", codec.to_uppercase()),
+        format!("CLS-{}.dll", codec.to_uppercase()),
+    ];
+    let dll_path = candidates
+        .iter()
+        .map(|name| dir.join(name))
+        .find(|p| p.exists())
+        .ok_or_else(|| {
+            ArcError::UnsupportedCompressor(format!(
+                "{}: no cls-{}.dll in CELLAR_CLS_DIR ({}), tried {:?}",
+                method,
+                codec,
+                dll_dir,
+                candidates
+            ))
+        })?;
 
     let mut child = Command::new(&wine_bin)
         .arg(&host_exe)
