@@ -36,14 +36,24 @@ native Rust decoder or a direct `cls-*.dll` call.
 ## CLIs
 
 ```
-fg-arc-ls    <archive>             list footer + control blocks
-fg-arc-files <archive>             list every file inside the archive
-fg-arc-dump  --kind dir <archive>  decompress one control block + hexdump
+fg-arc-ls     <archive>             list footer + control blocks
+fg-arc-files  <archive>             list every file inside the archive
+fg-arc-x      <archive> <out-dir>   extract (skips codecs we can't decode)
+fg-arc-c      <input-dir> <archive> create an archive (storing codec)
+fg-arc-survey <dir>                 walk a tree, classify each archive by
+                                    "extractable today / needs wine / unknown"
+fg-arc-dump   --kind dir <archive>  decompress one control block + hexdump
 ```
 
 `fg-arc-files` works on any FreeArc archive, including FitGirl bins
 whose DATA solid blocks use closed-source plugins. Listing files
 does not require decoding the file bytes.
+
+`fg-arc-survey` is the fast triage tool: walks a directory, finds
+every file with the `ArC\x01` footer signature (cheap last-4-KiB
+scan, no false positives on unrelated `*.bin` game-asset files),
+classifies each as NATIVE / HYBRID / BLOCKED / BROKEN, prints a
+per-file line + summary tally. See `RESULTS.md` for snapshots.
 
 Example on a FitGirl test archive:
 
