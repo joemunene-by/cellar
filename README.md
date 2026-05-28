@@ -188,15 +188,19 @@ for the format spec and reader internals.
 Plain installer launch. Manual library entry. Repack detection
 (FitGirl / DODI / KaOs / Inno Setup) via folder heuristics.
 
-**v0.2 (current):** Pure-Rust FreeArc reader (`freearc-native`)
-covering footer-first parsing, the full directory block, per-file
-extraction with CRC, and decoders for `storing` / `lzma:*` / `zstd`.
-`archive_peek` Tauri command + UI "Preview contents" pane lets
-users see what's in a `fg-*.bin` before committing to install.
-CLS plugin host (`freearc-cls-host`) plus dispatch wiring for the
-hybrid path covers the *architecture* for the closed codecs
-(`lolzi`, `lolzx`, `lolly`, `lollypop`); see "known issues" below
-for why the round-trip currently does not complete on wine-on-Mac.
+**v0.2 (current):** Pure-Rust FreeArc reader AND writer
+(`freearc-native`) covering footer-first parsing, the full
+directory block, per-file extraction with CRC, archive creation
+via `fg-arc-c`, and decoders for `storing` / `lzma:*` / `zstd`.
+Read + write round-trip is verified by a Cargo integration test
+(see `writer.rs`) so the open-codec path is provably correct end-
+to-end without depending on FitGirl bins. `archive_peek` Tauri
+command + UI "Preview contents" pane lets users see what's in a
+`fg-*.bin` before committing to install. CLS plugin host
+(`freearc-cls-host`) plus dispatch wiring for the hybrid path
+covers the *architecture* for the closed codecs (`lolzi`, `lolzx`,
+`lolly`, `lollypop`); see "known issues" below for why the round-
+trip currently does not complete on wine-on-Mac.
 
 **v0.3:** Polished library. Card grid, last-played, total play time,
 launch button, delete game. Per-game settings (DXVK toggle, ESYNC,
@@ -261,6 +265,14 @@ Devel builds) running on macOS 15 / Apple Silicon, that IPC fails:
 Verified by tracing every callback dispatch in cls-host
 (`CELLAR_CLS_TRACE=1`). Only `CLS_INIT` (which succeeds) and
 `CLS_DECOMPRESS` (which immediately returns -1) are reached.
+
+The freearc-shim path (calling `unarc.dll FreeArcExtract` directly,
+which is what the FitGirl installer itself does) gets one step
+further — it emits a `progress 9/N` callback, then deadlocks at
+**0% CPU for 10+ minutes**. unarc has spawned a CLS worker and is
+blocked on a kernel event the worker never signals. Same outcome
+on wine-staging 11.8 (mac driver) and Whisky wine 7.7. Not slow
+processing; pure IPC deadlock.
 
 Workaround today: use a repack that uses only open codecs
 (`storing`, `lzma`, `zstd`) — the existing `fg-arc-x` CLI extracts
