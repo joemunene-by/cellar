@@ -7,13 +7,20 @@
 # It does NOT run fg-arc-x: extraction can be slow on big archives
 # and is gated on the codecs the archive actually uses.
 #
+# Files are pre-filtered with a cheap last-4-KiB magic-byte check
+# for "ArC\x01" so the script does not flood with output when the
+# input dir contains hundreds of unrelated .bin game-asset files
+# (Unity, Need for Speed, CarX Street, etc. all use the .bin
+# extension for non-FreeArc data).
+#
 # Usage:
-#   scripts/freearc-smoke.sh path/to/dir-of-fitgirl-bins
-#   scripts/freearc-smoke.sh archive1.bin archive2.bin
+#   scripts/freearc-smoke.sh path/to/dir
+#   scripts/freearc-smoke.sh fg-01.bin fg-02.bin
 #   scripts/freearc-smoke.sh    # auto-discover under ~/Downloads
 #
-# Output goes to stdout; one section per archive. Exit code is 0
-# unless cargo build itself failed.
+# Default discovery matches fg-*.bin (FitGirl convention) and *.arc.
+# Paths passed as args are accepted regardless of name; they still
+# go through the magic-byte pre-check.
 
 set -euo pipefail
 
@@ -25,13 +32,27 @@ cargo build --release --quiet
 LS="$here/freearc-native/target/release/fg-arc-ls"
 FILES="$here/freearc-native/target/release/fg-arc-files"
 
+# Cheap magic-byte check: read the last 4 KiB, look for ArC\x01.
+# Returns 0 if the file is plausibly a FreeArc archive, non-zero
+# otherwise.
+is_freearc() {
+  local f="$1"
+  local size
+  size="$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)"
+  if [ "$size" -lt 4 ]; then return 1; fi
+  local skip=0
+  if [ "$size" -gt 4096 ]; then skip=$((size - 4096)); fi
+  dd if="$f" bs=1 skip="$skip" count=4096 2>/dev/null | \
+    grep -q -a $'ArC\x01'
+}
+
 inputs=()
 if [ $# -gt 0 ]; then
   for arg in "$@"; do
     if [ -d "$arg" ]; then
       while IFS= read -r -d '' f; do
         inputs+=("$f")
-      done < <(find "$arg" -type f \( -iname '*.bin' -o -iname '*.arc' \) -print0 | sort -z)
+      done < <(find "$arg" -type f \( -iname 'fg-*.bin' -o -iname '*.arc' \) -print0 | sort -z)
     else
       inputs+=("$arg")
     fi
@@ -49,8 +70,30 @@ if [ ${#inputs[@]} -eq 0 ]; then
 fi
 
 echo
-echo "=== ${#inputs[@]} archive(s) found ==="
+echo "=== ${#inputs[@]} candidate(s); checking signatures ==="
+real_archives=()
+skipped=0
 for arc in "${inputs[@]}"; do
+  if is_freearc "$arc"; then
+    real_archives+=("$arc")
+  else
+    skipped=$((skipped + 1))
+  fi
+done
+
+if [ "$skipped" -gt 0 ]; then
+  echo "$skipped of ${#inputs[@]} candidate(s) lacked the ArC\\x01 signature (not FreeArc)"
+fi
+
+if [ ${#real_archives[@]} -eq 0 ]; then
+  echo
+  echo "no real FreeArc archives in the scan path."
+  exit 0
+fi
+
+echo
+echo "=== ${#real_archives[@]} real archive(s) ==="
+for arc in "${real_archives[@]}"; do
   echo
   echo "================================================================"
   echo "archive: $arc"
