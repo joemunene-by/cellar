@@ -20,11 +20,34 @@ use crc32fast::Hasher;
 
 use crate::error::{ArcError, Result};
 
+/// Sentinel passed as `orig_size` to intermediate stages of a
+/// codec chain, where we cannot know the in-between buffer size
+/// without actually running the prior stage. Decoders that need
+/// `orig_size` (notably `lzma:*`, which embeds it in a synthesised
+/// header) should interpret this as "unknown, use the stream's
+/// end-of-stream marker" — that is what FreeArc's LZMA encoder
+/// emits by default for chained blocks.
+pub const ORIG_SIZE_UNKNOWN: u64 = u64::MAX;
+
 /// Decompress `compressed` according to the FreeArc method string.
-/// `orig_size` is the expected decompressed size from the descriptor.
+/// `orig_size` is the expected decompressed size from the descriptor
+/// (or `ORIG_SIZE_UNKNOWN` for intermediate stages of a chain).
 pub fn decompress(method: &str, compressed: &[u8], orig_size: u64) -> Result<Vec<u8>> {
+    // Chain handling. FreeArc chains read encode-order left to right
+    // ("srep+dispack070+delta+lollypop"); decode walks right to left.
+    // The final decode stage (encode index 0) is the only one whose
+    // output size we know — that is `orig_size`. Every other stage
+    // gets ORIG_SIZE_UNKNOWN.
+    if method.contains('+') {
+        return decompress_chain(method, compressed, orig_size);
+    }
+
     if method == "storing" {
-        if compressed.len() as u64 != orig_size {
+        // "storing" with an unknown target size in a chain is unusual
+        // (FreeArc would not pipe through a no-op compressor), but
+        // treat it as a straight pass-through if we cannot verify
+        // the size.
+        if orig_size != ORIG_SIZE_UNKNOWN && compressed.len() as u64 != orig_size {
             return Err(ArcError::Truncated);
         }
         return Ok(compressed.to_vec());
@@ -47,11 +70,36 @@ pub fn decompress(method: &str, compressed: &[u8], orig_size: u64) -> Result<Vec
     Err(ArcError::UnsupportedCompressor(method.to_owned()))
 }
 
+fn decompress_chain(method: &str, compressed: &[u8], orig_size: u64) -> Result<Vec<u8>> {
+    let stages: Vec<&str> = method.split('+').collect();
+    if stages.is_empty() {
+        return Err(ArcError::UnsupportedCompressor(method.to_owned()));
+    }
+    let n = stages.len();
+    let mut buf = compressed.to_vec();
+    // Walk decode order: stage index n-1 down to 0.
+    for k in 0..n {
+        let stage_idx = n - 1 - k;
+        let stage = stages[stage_idx].trim();
+        // Only the leftmost encode stage knows its real output size
+        // (= the original archive entry's data). Intermediates use
+        // the sentinel.
+        let stage_orig_size = if stage_idx == 0 { orig_size } else { ORIG_SIZE_UNKNOWN };
+        buf = decompress(stage, &buf, stage_orig_size)?;
+    }
+    Ok(buf)
+}
+
 /// FreeArc stores zstd-compressed blocks as standard zstd frames, so
 /// we just hand the bytes to the zstd crate. The level token after
 /// the colon (e.g. `zstd:22`) is encoder-only and irrelevant here.
 fn decompress_zstd(compressed: &[u8], orig_size: u64) -> Result<Vec<u8>> {
-    let mut out = Vec::with_capacity(orig_size as usize);
+    let cap = if orig_size == ORIG_SIZE_UNKNOWN {
+        compressed.len().saturating_mul(4)
+    } else {
+        orig_size as usize
+    };
+    let mut out = Vec::with_capacity(cap);
     zstd::stream::copy_decode(compressed, &mut out)
         .map_err(|e| ArcError::UnsupportedCompressor(format!("zstd decode failed: {}", e)))?;
     Ok(out)
@@ -94,13 +142,21 @@ fn decompress_lzma(compressed: &[u8], orig_size: u64, params: &str) -> Result<Ve
     }
 
     // Build a standard LZMA1 header in front of the compressed body.
+    // When orig_size is the chain sentinel (u64::MAX), the resulting
+    // 8 bytes of 0xFF are the LZMA1 "unknown size, use EoS marker"
+    // signal, which is exactly what the decoder needs in that case.
     let mut wrapped = Vec::with_capacity(13 + compressed.len());
     wrapped.push(props);
     wrapped.extend_from_slice(&dict_size.to_le_bytes());
     wrapped.extend_from_slice(&orig_size.to_le_bytes());
     wrapped.extend_from_slice(compressed);
 
-    let mut out = Vec::with_capacity(orig_size as usize);
+    let cap = if orig_size == ORIG_SIZE_UNKNOWN {
+        compressed.len().saturating_mul(2)
+    } else {
+        orig_size as usize
+    };
+    let mut out = Vec::with_capacity(cap);
     lzma_rs::lzma_decompress(&mut Cursor::new(&wrapped), &mut out)
         .map_err(|e| ArcError::UnsupportedCompressor(format!("lzma decode failed: {}", e)))?;
     Ok(out)
@@ -138,8 +194,22 @@ pub enum SupportLevel {
 }
 
 /// Classify a method string by how it would be handled. Cheap, no
-/// decoding.
+/// decoding. For chains ("srep+dispack+lollypop"), the chain's
+/// support level is the weakest of its stages: any Unsupported
+/// stage makes the whole chain Unsupported; any Hybrid stage
+/// (with all others Native or Hybrid) makes it Hybrid.
 pub fn support_level(method: &str) -> SupportLevel {
+    if method.contains('+') {
+        let mut overall = SupportLevel::Native;
+        for stage in method.split('+') {
+            match support_level(stage.trim()) {
+                SupportLevel::Unsupported => return SupportLevel::Unsupported,
+                SupportLevel::Hybrid => overall = SupportLevel::Hybrid,
+                SupportLevel::Native => {}
+            }
+        }
+        return overall;
+    }
     if method == "storing"
         || method == "lzma"
         || method.starts_with("lzma:")
@@ -215,8 +285,10 @@ mod tests {
         assert_eq!(support_level("lolzi"), SupportLevel::Hybrid);
         assert_eq!(support_level("lollypop:d1024"), SupportLevel::Hybrid);
 
-        // Chains are not handled by the single-codec hybrid path yet.
-        assert_eq!(support_level("srep+dispack+lollypop"), SupportLevel::Unsupported);
+        // Chains are handled by walking right-to-left, calling
+        // decompress recursively on each stage.
+        assert_eq!(support_level("srep+dispack+lollypop"), SupportLevel::Hybrid);
+
         assert_eq!(support_level(""), SupportLevel::Unsupported);
     }
 
@@ -232,5 +304,33 @@ mod tests {
         // Truly unknown.
         assert!(!is_supported(""));
         assert!(!is_supported("totally_made_up_codec_xyz"));
+    }
+
+    #[test]
+    fn support_level_handles_chains() {
+        // All-native chain → Native.
+        assert_eq!(support_level("storing+lzma"), SupportLevel::Native);
+        // Real FitGirl chain: srep + dispack + delta + lollypop are
+        // all CLS plugins → Hybrid.
+        assert_eq!(
+            support_level("srep:m3f+dispack070+delta+lollypop:d1024"),
+            SupportLevel::Hybrid
+        );
+        // Mixed: lzma is native, lollypop is hybrid → overall Hybrid.
+        assert_eq!(support_level("lollypop+lzma"), SupportLevel::Hybrid);
+        // Any unknown stage poisons the whole chain.
+        assert_eq!(
+            support_level("lzma+totally_made_up_codec_xyz"),
+            SupportLevel::Unsupported
+        );
+    }
+
+    #[test]
+    fn decompress_chain_storing_only_roundtrip() {
+        // storing+storing is a no-op pipeline; should pass bytes
+        // through unchanged when orig_size matches.
+        let body = b"chain-test-payload".to_vec();
+        let out = decompress("storing+storing", &body, body.len() as u64).unwrap();
+        assert_eq!(out, body);
     }
 }
