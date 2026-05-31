@@ -201,6 +201,39 @@ even when re-installation was redundant.
   detection rule"` so old frontend ↔ new backend (or vice versa)
   never crashes the drawer.
 
+### Added — GE-Proton tarball auto-download
+
+The Proton WinRT install previously failed with
+`DependencyMissing` if no tarball was pre-staged. The user had to
+go fetch ~700 MB from GitHub themselves, save it to one of three
+exact paths, then click Install again.
+
+`prereq.rs::download_ge_proton_tarball` lifts that step into cellar.
+First click on `proton_winrt_dlls` now does the whole flow:
+
+1. GET https://api.github.com/repos/GloriousEggroll/proton-ge-custom/
+   releases/latest via curl (`-H "User-Agent: cellar-launcher"`,
+   GitHub requires a UA).
+2. Parse the JSON, find the `.tar.gz` asset, read its size and the
+   release tag.
+3. curl the `browser_download_url` to
+   `~/.cellar/cache/ge-proton.tar.gz`. Heartbeat task polls the
+   destination file size every 3 s and emits a `cellar://prereq`
+   line with current MB downloaded + percent, so the drawer shows
+   forward motion on the long fetch.
+4. Sanity-check the resulting file is at least 100 MB (anything
+   smaller is almost certainly a GitHub HTML error page that curl
+   wrote as-is). Wipe and error out if not.
+
+Implementation uses `curl` as a subprocess instead of pulling in
+reqwest + rustls. macOS ships curl in the base system, and
+cellar's dep tree stays small (no extra TLS stack to compile and
+audit).
+
+If a local tarball already exists at any of the candidate paths
+(`/tmp/`, `~/.cellar/cache/`, `~/Downloads/`), it's still
+preferred — the auto-download only fires when nothing is staged.
+
 ## v0.2 (previous main)
 
 The "native FreeArc reader + writer + honest wine verdict" release.

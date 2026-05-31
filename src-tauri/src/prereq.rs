@@ -334,6 +334,179 @@ const WINRT_ACTIVATIONS: &[(&str, &str)] = &[
     ("Windows.System.DispatcherQueueTimer", "windows.system.dll"),
 ];
 
+/// Auto-fetch the latest GE-Proton release tarball from GitHub.
+///
+/// Two-step: (1) GET the release metadata JSON via the GitHub API to
+/// find the .tar.gz asset URL, (2) curl that URL to
+/// `~/.cellar/cache/ge-proton.tar.gz`. A heartbeat task emits size
+/// updates every 3 seconds so the drawer shows progress on a ~700 MB
+/// download.
+///
+/// We use `curl` as a subprocess rather than pulling in reqwest +
+/// rustls — keeps cellar's dependency tree small and the binary
+/// available on every macOS host.
+async fn download_ge_proton_tarball(
+    app: &AppHandle,
+    bottle_id: &str,
+) -> Result<PathBuf, PrereqError> {
+    let require_id = "proton_winrt_dlls";
+    let home = std::env::var("HOME").map_err(|_| PrereqError::IoError {
+        message: "HOME not set".into(),
+    })?;
+    let cache_dir = PathBuf::from(&home).join(".cellar/cache");
+    std::fs::create_dir_all(&cache_dir)?;
+    let dst = cache_dir.join("ge-proton.tar.gz");
+
+    // Step 1: release metadata.
+    let api_url = "https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest";
+    emit_line(app, bottle_id, require_id, "info", "querying github api for latest release");
+    let metadata_output = tokio::process::Command::new("curl")
+        .args([
+            "-fsSL",
+            "-H",
+            "Accept: application/vnd.github+json",
+            "-H",
+            "User-Agent: cellar-launcher",
+            api_url,
+        ])
+        .output()
+        .await
+        .map_err(|e| PrereqError::SpawnFailed { message: e.to_string() })?;
+    if !metadata_output.status.success() {
+        return Err(PrereqError::DependencyMissing {
+            what: "GitHub API".into(),
+            hint: format!(
+                "curl to {} failed (exit {}). stderr: {}",
+                api_url,
+                metadata_output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&metadata_output.stderr)
+            ),
+        });
+    }
+
+    let metadata: serde_json::Value = serde_json::from_slice(&metadata_output.stdout)
+        .map_err(|e| PrereqError::IoError {
+            message: format!("github api json parse failed: {}", e),
+        })?;
+
+    let assets = metadata["assets"].as_array().ok_or_else(|| PrereqError::IoError {
+        message: "github api response had no `assets` array".into(),
+    })?;
+
+    // GE-Proton ships GE-ProtonX-Y.tar.gz plus a GE-ProtonX-Y.sha512sum
+    // sidecar. Pick the .tar.gz that is not the sha sidecar.
+    let asset = assets
+        .iter()
+        .find(|a| {
+            a["name"]
+                .as_str()
+                .map(|n| n.ends_with(".tar.gz"))
+                .unwrap_or(false)
+        })
+        .ok_or_else(|| PrereqError::IoError {
+            message: "no .tar.gz asset in latest GE-Proton release".into(),
+        })?;
+
+    let tarball_url = asset["browser_download_url"].as_str().ok_or_else(|| {
+        PrereqError::IoError {
+            message: "asset has no browser_download_url".into(),
+        }
+    })?;
+    let asset_name = asset["name"].as_str().unwrap_or("ge-proton.tar.gz");
+    let asset_size = asset["size"].as_u64().unwrap_or(0);
+    let tag_name = metadata["tag_name"].as_str().unwrap_or("?");
+    emit_line(
+        app,
+        bottle_id,
+        require_id,
+        "info",
+        format!(
+            "downloading {} ({}, ~{} MB)",
+            tag_name,
+            asset_name,
+            asset_size / 1_000_000
+        ),
+    );
+
+    // Step 2: download with a heartbeat polling the destination size.
+    // curl -s suppresses its own progress bar; we report ours.
+    let mut child = tokio::process::Command::new("curl")
+        .args([
+            "-fL",
+            "-s",
+            "-o",
+            &dst.display().to_string(),
+            tarball_url,
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| PrereqError::SpawnFailed { message: e.to_string() })?;
+
+    let dst_probe = dst.clone();
+    let bid_probe = bottle_id.to_string();
+    let app_probe = app.clone();
+    let progress = tokio::spawn(async move {
+        let mut last_emitted = 0u64;
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+            let size = std::fs::metadata(&dst_probe).map(|m| m.len()).unwrap_or(0);
+            if size == 0 || size == last_emitted {
+                continue;
+            }
+            last_emitted = size;
+            let pct = if asset_size > 0 {
+                (size as f64 / asset_size as f64) * 100.0
+            } else {
+                0.0
+            };
+            emit_line(
+                &app_probe,
+                &bid_probe,
+                "proton_winrt_dlls",
+                "stdout",
+                format!("downloaded {} MB ({:.1}%)", size / 1_000_000, pct),
+            );
+        }
+    });
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| PrereqError::SpawnFailed { message: e.to_string() })?;
+    progress.abort();
+
+    if !status.success() {
+        let _ = std::fs::remove_file(&dst);
+        return Err(PrereqError::ProcessFailed {
+            stage: "curl ge-proton tarball".into(),
+            exit_code: status.code().unwrap_or(-1),
+        });
+    }
+
+    let size = std::fs::metadata(&dst).map(|m| m.len()).unwrap_or(0);
+    if size < 100_000_000 {
+        // GE-Proton releases are ~700 MB. Anything under 100 MB is
+        // almost certainly an HTML error page that curl saved as-is.
+        let _ = std::fs::remove_file(&dst);
+        return Err(PrereqError::DependencyMissing {
+            what: "GE-Proton tarball".into(),
+            hint: format!(
+                "downloaded file is only {} bytes — expected ~700 MB. Check network or rate-limit.",
+                size
+            ),
+        });
+    }
+    emit_line(
+        app,
+        bottle_id,
+        require_id,
+        "info",
+        format!("download complete: {} MB at {}", size / 1_000_000, dst.display()),
+    );
+    Ok(dst)
+}
+
 async fn install_proton_winrt(bottle_id: String, app: AppHandle) -> Result<(), PrereqError> {
     let require_id = "proton_winrt_dlls";
     let prefix = wine::bottle_prefix_path(&bottle_id)
@@ -342,21 +515,13 @@ async fn install_proton_winrt(bottle_id: String, app: AppHandle) -> Result<(), P
         return Err(PrereqError::BottleMissing { id: bottle_id });
     }
     let wine_bin = runtime::find_wine_bin().ok_or(PrereqError::WineMissing)?;
-    let tarball = find_proton_tarball().ok_or(PrereqError::DependencyMissing {
-        what: "GE-Proton tarball".into(),
-        hint: format!(
-            "Download the latest GE-Proton release tarball from \
-             https://github.com/GloriousEggroll/proton-ge-custom/releases/latest \
-             and save it as one of: {}",
-            proton_tarball_candidates()
-                .iter()
-                .map(|p| p.display().to_string())
-                .collect::<Vec<_>>()
-                .join(" | ")
-        ),
-    })?;
-
-    emit_line(&app, &bottle_id, require_id, "info", format!("found tarball at {}", tarball.display()));
+    let tarball = if let Some(t) = find_proton_tarball() {
+        emit_line(&app, &bottle_id, require_id, "info", format!("found tarball at {}", t.display()));
+        t
+    } else {
+        emit_line(&app, &bottle_id, require_id, "info", "no local tarball — fetching latest GE-Proton from GitHub");
+        download_ge_proton_tarball(&app, &bottle_id).await?
+    };
 
     // Extract to a working dir under /tmp. tar can take a long time on a
     // big tarball; stream progress via `-v` so the UI shows movement.
