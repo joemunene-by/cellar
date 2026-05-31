@@ -18,6 +18,9 @@ export default function Library() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Game | null>(null);
+  // Bundled + user profiles, loaded once. Match per-card on the fly so
+  // renames or profile updates take effect without a backend round-trip.
+  const [profileList, setProfileList] = useState<Profile[]>([]);
 
   const reload = useCallback(async () => {
     setError(null);
@@ -31,6 +34,13 @@ export default function Library() {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  useEffect(() => {
+    profiles
+      .list()
+      .then(setProfileList)
+      .catch(() => setProfileList([]));
+  }, []);
 
   const launch = async (game: Game) => {
     setBusyId(game.id);
@@ -82,9 +92,21 @@ export default function Library() {
         </div>
       ) : (
         <ul className="game-grid">
-          {games.map((g) => (
+          {games.map((g) => {
+            const matched = matchProfile(profileList, g.name);
+            return (
             <li key={g.id} className="game-card">
-              <div className="game-card-title">{g.name}</div>
+              <div className="game-card-title">
+                {g.name}
+                {matched && (
+                  <span
+                    className="profile-badge"
+                    title={`Bundled profile: ${matched.name}\n${matched.description}`}
+                  >
+                    {matched.name}
+                  </span>
+                )}
+              </div>
               <div className="game-card-meta">
                 <span title={g.bottle_id}>bottle {g.bottle_id.slice(0, 8)}</span>
                 <span>{prettyDuration(g.total_play_ms)} played</span>
@@ -112,7 +134,8 @@ export default function Library() {
                 </button>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 
@@ -412,6 +435,16 @@ function parseEnvText(text: string): Record<string, string> {
     out[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
   }
   return out;
+}
+
+function matchProfile(list: Profile[], gameName: string): Profile | null {
+  const needle = gameName.toLowerCase();
+  for (const p of list) {
+    for (const hint of p.match_name_contains) {
+      if (needle.includes(hint.toLowerCase())) return p;
+    }
+  }
+  return null;
 }
 
 function prettyDuration(ms: number): string {

@@ -301,6 +301,23 @@ code {
   font-size: 15px;
   font-weight: 600;
   color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.profile-badge {
+  font-size: 10px;
+  font-weight: 500;
+  color: #9bd1ff;
+  background: rgba(74, 158, 255, 0.12);
+  border: 1px solid rgba(74, 158, 255, 0.35);
+  border-radius: 10px;
+  padding: 1px 8px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: help;
 }
 
 .game-card-meta {
