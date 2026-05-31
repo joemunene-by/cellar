@@ -264,8 +264,21 @@ Empirically verified on Mac mini M4 / macOS 15.6 / wine-staging 11.8:
 Both wine-only failures (D3D9 NULL deref, Unity Job-system
 thrash) are fixed by **GPTK** (Apple's wine + **D3DMetal**, the
 D3D9 / 10 / 11 / 12 to Metal translator). The Unity DispatcherQueue
-gap is GPTK-version-specific: GPTK 2.1 / Whisky wine 7.7 does
-not fix it; CrossOver 24+ (wine 9.x + D3DMetal) does.
+gap is upstream-wine-wide as of wine 11.x: the WinRT class has
+an IDL header (winehq MR !2489) but no working COM implementation
+in mainline. Verified empirically with the hybrid path —
+cellar wine-staging 11.8 + Whisky's `D3DMetal.framework` +
+Whisky's d3d* forwarder DLLs (see
+`scripts/launch-carxstreet-hybrid.sh`) — the swapchain renders
+and the process survives further than Whisky alone (no Job-system
+deadlock thanks to newer wine), but `RoGetActivationFactory` for
+`Windows.System.DispatcherQueue` still fails and Unity exits on
+the first frame. CrossOver's proprietary patches implement the
+class; only that and the native Mac builds work for Unity 2022+
+IL2CPP titles today on Apple Silicon. Several recent Unity Mac
+ports — including CarX Street itself — now ship a native Apple
+Silicon build via Steam, which sidesteps cellar entirely for
+those titles.
 
 `scripts/setup-gptk.sh` installs the canonical
 `apple/apple/game-porting-toolkit` formula, with Whisky's bundled
