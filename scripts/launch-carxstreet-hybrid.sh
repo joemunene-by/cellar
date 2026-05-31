@@ -38,6 +38,9 @@ env_base=(
   "ROSETTA_ADVERTISE_AVX=1"
   "WINEESYNC=0"
   "WINEDLLOVERRIDES=winemenubuilder.exe=d"
+  "MVK_CONFIG_USE_METAL_PRIVATE_API=1"
+  "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=2"
+  "MVK_CONFIG_FAST_MATH_ENABLED=1"
 )
 
 if [ ! -d "$PREFIX/drive_c" ]; then
@@ -46,18 +49,14 @@ if [ ! -d "$PREFIX/drive_c" ]; then
   env "${env_base[@]}" "$WINESERVER" -w
 fi
 
-# Stage Whisky's D3DMetal forwarder DLLs into the prefix.
-echo "staging Whisky D3DMetal forwarder DLLs..." | tee -a "$LOG"
-for dll in d3d9.dll d3d10core.dll d3d11.dll dxgi.dll; do
-  if [ -f "$WHISKY_X64/$dll" ]; then
-    cp "$WHISKY_X64/$dll" "$PREFIX/drive_c/windows/system32/$dll"
-    echo "  64-bit $dll OK" >> "$LOG"
-  fi
-  if [ -f "$WHISKY_X32/$dll" ]; then
-    cp "$WHISKY_X32/$dll" "$PREFIX/drive_c/windows/syswow64/$dll"
-    echo "  32-bit $dll OK" >> "$LOG"
-  fi
-done
+# NOTE: Whisky's D3DMetal forwarder DLLs WERE staged here, but they require
+# Whisky's wine 7.7 ABI and fail under cellar's wine 11.8 (D3D11CreateDevice
+# returns E_FAIL = 0x80004005). Upstream DXVK 2.7.1 is installed via
+# `winetricks dxvk` instead — it goes D3D11 -> Vulkan -> MoltenVK -> Metal
+# on the same wine 11.8 that runs the rest of the bottle. DXVK is more
+# vertex-format-correct than Unity's native Vulkan path, which is what we
+# need to fix the Burst+Rosetta vertex glitches.
+echo "DXVK d3d11.dll already in place ($(stat -f %z "$PREFIX/drive_c/windows/system32/d3d11.dll") bytes)" >> "$LOG"
 
 # Tell wine to prefer the staged native d3d* over its builtin.
 env "${env_base[@]}" WINEDEBUG=-all "$WINE" reg add \
