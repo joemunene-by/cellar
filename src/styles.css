@@ -320,6 +320,38 @@ code {
   cursor: help;
 }
 
+.ready-badge {
+  font-size: 10px;
+  font-weight: 500;
+  color: #9be7b0;
+  background: rgba(78, 200, 110, 0.12);
+  border: 1px solid rgba(78, 200, 110, 0.4);
+  border-radius: 10px;
+  padding: 1px 8px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.needs-setup-badge {
+  font-size: 10px;
+  font-weight: 500;
+  color: #ffd680;
+  background: rgba(220, 180, 60, 0.12);
+  border: 1px solid rgba(220, 180, 60, 0.45);
+  border-radius: 10px;
+  padding: 1px 8px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+
+.needs-setup-badge:hover {
+  background: rgba(220, 180, 60, 0.22);
+}
+
 .game-card-meta {
   display: flex;
   flex-direction: column;

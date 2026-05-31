@@ -24,6 +24,13 @@ export default function Library() {
   // renames or profile updates take effect without a backend round-trip.
   const [profileList, setProfileList] = useState<Profile[]>([]);
 
+  // Per-game readiness derived from prereq.checkAll. Three states:
+  //   'ready'        every prereq in the matched profile is satisfied
+  //   'needs_setup'  at least one prereq is missing
+  //   'no_profile'   no profile matched, or matched profile has no requires
+  type Readiness = 'ready' | 'needs_setup' | 'no_profile';
+  const [readiness, setReadiness] = useState<Record<string, Readiness>>({});
+
   const reload = useCallback(async () => {
     setError(null);
     try {
@@ -43,6 +50,36 @@ export default function Library() {
       .then(setProfileList)
       .catch(() => setProfileList([]));
   }, []);
+
+  // Compute per-game readiness whenever the games list or profileList
+  // changes. One prereq.checkAll per game whose name matches a profile
+  // that has any requires. For a typical library (a handful of games)
+  // that's a small enough number of round-trips to skip caching.
+  useEffect(() => {
+    if (!games || games.length === 0 || profileList.length === 0) return;
+    let mounted = true;
+    (async () => {
+      const next: Record<string, Readiness> = {};
+      for (const g of games) {
+        const matched = matchProfile(profileList, g.name);
+        if (!matched || matched.requires.length === 0) {
+          next[g.id] = 'no_profile';
+          continue;
+        }
+        try {
+          const results = await prereq.checkAll(g.bottle_id, matched.requires);
+          const allOk = Object.values(results).every((r) => r.satisfied);
+          next[g.id] = allOk ? 'ready' : 'needs_setup';
+        } catch {
+          next[g.id] = 'needs_setup';
+        }
+      }
+      if (mounted) setReadiness(next);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [games, profileList]);
 
   const launch = async (game: Game) => {
     setBusyId(game.id);
@@ -96,6 +133,7 @@ export default function Library() {
         <ul className="game-grid">
           {games.map((g) => {
             const matched = matchProfile(profileList, g.name);
+            const r = readiness[g.id];
             return (
             <li key={g.id} className="game-card">
               <div className="game-card-title">
@@ -107,6 +145,21 @@ export default function Library() {
                   >
                     {matched.name}
                   </span>
+                )}
+                {r === 'ready' && (
+                  <span className="ready-badge" title="All profile prerequisites installed">
+                    ✓ Ready
+                  </span>
+                )}
+                {r === 'needs_setup' && (
+                  <button
+                    className="needs-setup-badge"
+                    title="One or more profile prerequisites are missing — click to open Settings and set them up"
+                    type="button"
+                    onClick={() => setEditing(g)}
+                  >
+                    ⚠ Needs setup
+                  </button>
                 )}
               </div>
               <div className="game-card-meta">
