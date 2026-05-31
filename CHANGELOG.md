@@ -234,6 +234,67 @@ If a local tarball already exists at any of the candidate paths
 (`/tmp/`, `~/.cellar/cache/`, `~/Downloads/`), it's still
 preferred — the auto-download only fires when nothing is staged.
 
+### Field findings — CarX Street v1.6 -> v1.11 swap
+
+Swapped the bottle's game payload from the v1.6 FitGirl repack
+(April 2025) to the v1.11 SteamRIP RUNE pre-install (March 2026).
+The hybrid runtime stack (cellar wine 11.8 + Whisky D3DMetal +
+Proton WinRT DLLs) was unchanged; the bottle ran v1.11 end-to-end
+on Mac mini M4 after a fresh prefix rebuild.
+
+User-side artefacts now live at persistent paths instead of `/tmp`
+(which macOS wipes on reboot):
+
+- `~/.cellar/bin/launch-carxstreet-hybrid.sh` — the launcher
+- `/Applications/cellar Games/CarX Street.app` — clickable wrapper
+  with `LSPrefersRosetta2AheadOfTime=YES` in the bundle `Info.plist`
+- `~/.cellar/cache/ge-proton.tar.gz` — the WinRT DLL source, kept
+  for the prereq runner so future bottles do not re-download
+
+### Notes — wine-on-macOS lessons learned the hard way
+
+Two non-obvious things that cost hours of misdiagnosis today:
+
+1. **Dangling `dosdevices` symlinks brick wine `explorer.exe`.**
+   Earlier in the day FlightGear was uninstalled from the Mac. The
+   bottle's `dosdevices/d:` symlink had pointed at
+   `/Volumes/FlightGear 2024.1.5`, which no longer existed. wine's
+   `explorer.exe` walks the dosdevices list during init; the
+   dangling symlink killed it. Cascade: explorer dies, `winemac.drv`
+   can't load, every `CreateWindow` returns `nodrv_CreateWindow`,
+   game fails to start. Fix: `rm prefix/dosdevices/d:` (and the
+   matching `d::` device link if it points at a stale `/dev/rdiskN`).
+
+   This is worth a future cellar bottle-health check: scan
+   `dosdevices/*` for dangling symlinks and offer to prune them.
+
+2. **wine cannot create windows from an SSH-only session on macOS.**
+   `winemac.drv` calls Cocoa APIs that need WindowServer / Aqua
+   session access. SSH sessions get a non-GUI audit session, so
+   the driver fails to attach. The same launcher script that
+   produced `nodrv_CreateWindow` six times in a row over SSH ran
+   cleanly when the user double-clicked the `.app` bundle. Lesson:
+   when remote-debugging cellar bottles via SSH, console-only
+   tests (`wine cmd /c ...`) work but anything that touches windows
+   will fail spuriously. The bottle was fine the whole time.
+
+### Vertex glitch — partial mitigation via in-game SSR off
+
+The vertex glitch on metallic surfaces (player car, race-AI
+opponents, building windows) that v0.2 documented as a wall is
+at least partly Unity 2022 Screen-Space Reflections on PBR
+materials under D3DMetal. The v1.11 publisher patch flipped which
+meshes were affected: trees that glitched in v1.6 are now clean,
+but the metallic-surface variant is still present (slightly
+reduced).
+
+Setting in-game **Reflections** to Low/Off measurably reduces the
+artefacts on cars + buildings without killing perf. Not a complete
+fix — partial mitigation only. Anti-Aliasing toggle did not move
+the needle in further tests. The Burst-disable nuke
+(`mv lib_burst_generated.dll`) was NOT tested because the SSR
+reduction was acceptable as an end-of-session stopping point.
+
 ## v0.2 (previous main)
 
 The "native FreeArc reader + writer + honest wine verdict" release.
