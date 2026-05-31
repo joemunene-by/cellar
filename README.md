@@ -34,9 +34,12 @@ cellar  (Tauri 2 / Rust + React)
   v
 Wine 11.x  (Gcenx wine-staging / wine-devel, vendored)
   - Windows API translation for the install + launch loop
+  - NOT sufficient on its own on M-series; see "wine-only
+    is not enough on M-series" in known issues below
   v
 Apple Game Porting Toolkit (GPTK)
-  - D3D11 / D3D12 -> Metal via D3DMetal
+  - D3D9 / D3D10 / D3D11 / D3D12 -> Metal via D3DMetal
+  - required for game launches on Apple Silicon, not optional
   v
 Rosetta 2  (system-wide on every M-series Mac)
   - x86_64 -> ARM64 translation
@@ -229,6 +232,53 @@ any copyrighted content. cellar is a launcher; the user supplies the
 game files.
 
 ## known issues
+
+### wine-only is not enough on M-series (GPTK is required)
+
+Empirically verified on Mac mini M4 / macOS 15.6 / wine-staging 11.8:
+
+- **D3D9 games (e.g. NFS:MW 2005).** Every DXVK build, upstream
+  or Mac-targeted (Gcenx, Whisky), ships d3d10/d3d11/dxgi only and
+  intentionally omits d3d9 — because DXVK requires Vulkan
+  `geometryShader`, and MoltenVK reports that feature as
+  unsupported on every Apple Silicon GPU (M1–M4). Falling back
+  to wine's builtin `wined3d -> opengl32` path lets speed.exe
+  load but it NULL-derefs at startup (page fault at speed+0x2e6d5f
+  on its first display-mode enumeration), because wined3d on the
+  macOS GL backend returns a mode list the game does not expect.
+
+- **Modern Unity titles with Burst/IL2CPP (e.g. CarX Street).**
+  On wine 11.8: deadlocked on the wine `NtAlertThreadByThreadId`
+  / `os_sync_wait_on_address` thundering-herd bug, 100%+ CPU
+  with no frames. On Whisky's GPTK-patched wine 7.7 + D3DMetal:
+  the deadlock is gone, Unity's memory subsystem comes up, but
+  the IL2CPP runtime then calls `RoGetActivationFactory` for
+  `Windows.System.DispatcherQueue`, which wine 7.7 does not
+  implement (added upstream in wine 9.x). Setting the prefix
+  to report as Windows 7 does NOT make Unity take a different
+  code path — the call is unconditional. Without a newer wine
+  (CrossOver 24+ ships wine 9.x with D3DMetal; a future GPTK
+  release would update Whisky downstream), modern Unity 2022+
+  IL2CPP titles are blocked on M-series.
+
+Both wine-only failures (D3D9 NULL deref, Unity Job-system
+thrash) are fixed by **GPTK** (Apple's wine + **D3DMetal**, the
+D3D9 / 10 / 11 / 12 to Metal translator). The Unity DispatcherQueue
+gap is GPTK-version-specific: GPTK 2.1 / Whisky wine 7.7 does
+not fix it; CrossOver 24+ (wine 9.x + D3DMetal) does.
+
+`scripts/setup-gptk.sh` installs the canonical
+`apple/apple/game-porting-toolkit` formula, with Whisky's bundled
+wine as a documented fallback when that formula fails (the
+upstream Apple tap depends on `openssl@1.1`, which Homebrew has
+since dropped from core; the script handles this case
+explicitly).
+
+If a `cellar` user tries to launch a game with no GPTK detected,
+the installer wizard should surface this requirement and offer
+to run `setup-gptk.sh` automatically. Treat plain wine-staging as
+a developer-only smoke configuration for the install pipeline,
+not as a supported launch runtime.
 
 ### winemac.drv HWND lifecycle deadlock (FitGirl installs)
 
