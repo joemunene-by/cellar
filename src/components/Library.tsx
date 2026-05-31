@@ -195,6 +195,25 @@ function SettingsDrawer({
         if (!mounted) return;
         setProfileList(all);
         setMatchedProfile(matched);
+        // Seed prereq satisfaction state for the matched profile. Best-
+        // effort: any failure leaves entries in 'idle' so the user can
+        // still click Install.
+        if (matched && matched.requires.length > 0) {
+          try {
+            const results = await prereq.checkAll(game.bottle_id, matched.requires);
+            if (!mounted) return;
+            const status: Record<string, PrereqState> = {};
+            const detail: Record<string, string> = {};
+            for (const [rid, res] of Object.entries(results)) {
+              if (res.satisfied) status[rid] = 'ok';
+              if (res.detail) detail[rid] = res.detail;
+            }
+            setPrereqStatus(status);
+            setPrereqDetail(detail);
+          } catch {
+            // soft fail: leave everything idle
+          }
+        }
       } catch {
         // Profiles are a soft feature — silently fall back if missing.
         if (mounted) setProfileList([]);
@@ -203,7 +222,7 @@ function SettingsDrawer({
     return () => {
       mounted = false;
     };
-  }, [game.name]);
+  }, [game.name, game.bottle_id]);
 
   useEffect(() => {
     let mounted = true;

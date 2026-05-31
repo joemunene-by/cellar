@@ -174,6 +174,33 @@ into one-click installs in the drawer.
 
 cargo check + tsc --noEmit both clean.
 
+### Added — prereq satisfaction check
+
+The Install buttons were a footgun: nothing told the user whether
+the bottle already had the WinRT DLLs staged or the Microsoft
+mfplat.dll installed, so a returning user would always see "Install"
+even when re-installation was redundant.
+
+- `prereq_check(bottle_id, require_id)` and `prereq_check_all(
+  bottle_id, [require_id])` Tauri commands. Inspect the bottle on
+  disk for the load-bearing artefact:
+  - `proton_winrt_dlls`: `coremessaging.dll` in `system32`
+  - `winetricks_mf`: `mfplat.dll` size > 500 KB (distinguishes the
+    real Microsoft DLL ~2 MB from wine's builtin stub ~50-100 KB)
+  - `winetricks_d3dcompiler_47`: presence of `d3dcompiler_47.dll`
+  - `winetricks_vcrun2003`: presence of `msvcr71.dll`
+  - `homebrew_gstreamer`: presence of `/opt/homebrew/lib/
+    gstreamer-1.0/libgstlibav.dylib` (base GStreamer is not enough,
+    we also need `gst-libav` for FFmpeg-backed codecs)
+- Drawer mount now batches `prereq.checkAll` against the matched
+  profile's `requires` list. Each entry that comes back satisfied
+  gets its row coloured green from the start, button labelled
+  "Re-install" instead of "Install", and the detail text shows
+  why it was considered installed.
+- Unknown `require_id`s return `satisfied: false, detail: "no
+  detection rule"` so old frontend ↔ new backend (or vice versa)
+  never crashes the drawer.
+
 ## v0.2 (previous main)
 
 The "native FreeArc reader + writer + honest wine verdict" release.

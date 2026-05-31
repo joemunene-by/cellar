@@ -114,9 +114,18 @@ export const profiles = {
   find: (gameName: string) => invoke<Profile | null>('profiles_find', { gameName }),
 };
 
+export interface CheckResult {
+  satisfied: boolean;
+  detail: string | null;
+}
+
 export const prereq = {
   install: (bottleId: string, requireId: string) =>
     invoke<void>('prereq_install', { bottleId, requireId }),
+  check: (bottleId: string, requireId: string) =>
+    invoke<CheckResult>('prereq_check', { bottleId, requireId }),
+  checkAll: (bottleId: string, requireIds: string[]) =>
+    invoke<Record<string, CheckResult>>('prereq_check_all', { bottleId, requireIds }),
 };
 
 /** Event payloads. cellar://prereq fires per output line during a

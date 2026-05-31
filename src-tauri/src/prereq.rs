@@ -11,6 +11,7 @@
 //! bottle id + require id; a terminal `cellar://prereq-done` event
 //! carries the success bool and a short detail string.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
@@ -77,6 +78,139 @@ fn emit_done(app: &AppHandle, bottle_id: &str, require_id: &str, success: bool, 
             detail: detail.into(),
         },
     );
+}
+
+#[derive(Clone, Serialize)]
+pub struct CheckResult {
+    /// True if the prereq is detectably already installed in the bottle.
+    pub satisfied: bool,
+    /// Short reason: "coremessaging.dll staged", "homebrew gstreamer
+    /// arm64 present", "no detection rule". Surfaced in the drawer.
+    pub detail: Option<String>,
+}
+
+/// Inspect a bottle for whether a specific prereq is already installed.
+///
+/// Detection is best-effort and conservative: we report `satisfied:
+/// true` only when we can confirm the artefact (e.g. a key DLL in
+/// `system32`, a homebrew lib dir on disk). Unknown require ids
+/// return `satisfied: false, detail: Some("no detection rule")`
+/// rather than erroring, so the UI can degrade gracefully.
+#[tauri::command]
+pub fn prereq_check(bottle_id: String, require_id: String) -> Result<CheckResult, PrereqError> {
+    let prefix = wine::bottle_prefix_path(&bottle_id)
+        .map_err(|_| PrereqError::BottleMissing { id: bottle_id.clone() })?;
+    Ok(check_one(&prefix, &require_id))
+}
+
+/// Batch version. The frontend calls this once on drawer open with
+/// the matched profile's full `requires` list to seed initial state.
+#[tauri::command]
+pub fn prereq_check_all(
+    bottle_id: String,
+    require_ids: Vec<String>,
+) -> Result<HashMap<String, CheckResult>, PrereqError> {
+    let prefix = wine::bottle_prefix_path(&bottle_id)
+        .map_err(|_| PrereqError::BottleMissing { id: bottle_id.clone() })?;
+    Ok(require_ids
+        .into_iter()
+        .map(|rid| {
+            let res = check_one(&prefix, &rid);
+            (rid, res)
+        })
+        .collect())
+}
+
+fn check_one(prefix: &Path, require_id: &str) -> CheckResult {
+    match require_id {
+        "proton_winrt_dlls" => {
+            // coremessaging.dll is the load-bearing one — it backs
+            // every Windows.System.DispatcherQueue activation. If it
+            // is in system32 the staging definitely ran.
+            let target = prefix.join("drive_c/windows/system32/coremessaging.dll");
+            let satisfied = target.exists();
+            CheckResult {
+                satisfied,
+                detail: Some(if satisfied {
+                    "coremessaging.dll staged".into()
+                } else {
+                    "coremessaging.dll missing in system32".into()
+                }),
+            }
+        }
+        "winetricks_mf" => {
+            // winetricks mf drops native Microsoft mfplat.dll into
+            // system32 (overriding wine's stub) plus mfreadwrite,
+            // mfmediaengine, mfsrcsnk. Test mfplat.dll size to
+            // distinguish the real Microsoft DLL (~2 MB) from wine's
+            // builtin stub (~50-100 KB).
+            let target = prefix.join("drive_c/windows/system32/mfplat.dll");
+            let satisfied = std::fs::metadata(&target)
+                .map(|m| m.len() > 500_000)
+                .unwrap_or(false);
+            CheckResult {
+                satisfied,
+                detail: Some(if satisfied {
+                    "native mfplat.dll staged".into()
+                } else if target.exists() {
+                    "mfplat.dll present but looks like wine builtin (run winetricks mf)".into()
+                } else {
+                    "mfplat.dll absent".into()
+                }),
+            }
+        }
+        "winetricks_d3dcompiler_47" => {
+            let target = prefix.join("drive_c/windows/system32/d3dcompiler_47.dll");
+            CheckResult {
+                satisfied: target.exists(),
+                detail: Some(if target.exists() {
+                    "d3dcompiler_47.dll staged".into()
+                } else {
+                    "d3dcompiler_47.dll absent".into()
+                }),
+            }
+        }
+        "winetricks_vcrun2003" => {
+            // vcrun2003 stages msvcr71.dll + msvcp71.dll.
+            let target = prefix.join("drive_c/windows/system32/msvcr71.dll");
+            CheckResult {
+                satisfied: target.exists(),
+                detail: Some(if target.exists() {
+                    "msvcr71.dll staged".into()
+                } else {
+                    "msvcr71.dll absent".into()
+                }),
+            }
+        }
+        "homebrew_gstreamer" => {
+            // Homebrew GStreamer always installs to /opt/homebrew/lib/
+            // on Apple Silicon. We check both the plugin dir and a
+            // marker plugin from gst-libav, since base GStreamer alone
+            // is not enough for the wine MF bridge we want.
+            let plugins = Path::new("/opt/homebrew/lib/gstreamer-1.0");
+            let libav_marker = plugins.join("libgstlibav.dylib");
+            if libav_marker.exists() {
+                CheckResult {
+                    satisfied: true,
+                    detail: Some("homebrew gstreamer + gst-libav present".into()),
+                }
+            } else if plugins.exists() {
+                CheckResult {
+                    satisfied: false,
+                    detail: Some("gstreamer found but gst-libav missing (run brew install gst-libav)".into()),
+                }
+            } else {
+                CheckResult {
+                    satisfied: false,
+                    detail: Some("/opt/homebrew/lib/gstreamer-1.0 missing".into()),
+                }
+            }
+        }
+        _ => CheckResult {
+            satisfied: false,
+            detail: Some("no detection rule".into()),
+        },
+    }
 }
 
 /// Install a profile prereq into a bottle. Dispatches on `require_id`.

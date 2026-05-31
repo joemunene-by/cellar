@@ -38,6 +38,8 @@ fn main() {
             profiles::profiles_list,
             profiles::profiles_find,
             prereq::prereq_install,
+            prereq::prereq_check,
+            prereq::prereq_check_all,
             runtime::runtime_status,
             runtime::runtime_test_wine,
             runtime::runtime_launch,
