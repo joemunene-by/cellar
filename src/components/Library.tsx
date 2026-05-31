@@ -9,7 +9,7 @@
  *     and a background tokio task that waits for the child exit.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { library, prereq, profiles, runtime, isCellarError } from '../lib/invoke';
@@ -20,6 +20,12 @@ export default function Library() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Game | null>(null);
+  // When a game is opened via the ⚠ Needs setup badge we want the
+  // drawer to auto-fire "Set up profile" once the initial prereq checks
+  // resolve. Tracking the trigger source on the parent lets the drawer
+  // decide whether to auto-run; explicit "Settings" clicks leave it
+  // null so manual edits stay manual.
+  const [autoSetupGameId, setAutoSetupGameId] = useState<string | null>(null);
   // Bundled + user profiles, loaded once. Match per-card on the fly so
   // renames or profile updates take effect without a backend round-trip.
   const [profileList, setProfileList] = useState<Profile[]>([]);
@@ -154,9 +160,12 @@ export default function Library() {
                 {r === 'needs_setup' && (
                   <button
                     className="needs-setup-badge"
-                    title="One or more profile prerequisites are missing — click to open Settings and set them up"
+                    title="One or more profile prerequisites are missing — click to open Settings and auto-run setup"
                     type="button"
-                    onClick={() => setEditing(g)}
+                    onClick={() => {
+                      setAutoSetupGameId(g.id);
+                      setEditing(g);
+                    }}
                   >
                     ⚠ Needs setup
                   </button>
@@ -197,9 +206,14 @@ export default function Library() {
       {editing && (
         <SettingsDrawer
           game={editing}
-          onClose={() => setEditing(null)}
+          autoSetup={autoSetupGameId === editing.id}
+          onClose={() => {
+            setEditing(null);
+            setAutoSetupGameId(null);
+          }}
           onSaved={async () => {
             setEditing(null);
+            setAutoSetupGameId(null);
             await reload();
           }}
         />
@@ -210,10 +224,15 @@ export default function Library() {
 
 function SettingsDrawer({
   game,
+  autoSetup = false,
   onClose,
   onSaved,
 }: {
   game: Game;
+  /// When true, the drawer auto-fires "Set up profile" after the
+  /// initial prereq checks resolve. Set by the parent when the drawer
+  /// is opened via the ⚠ Needs setup badge.
+  autoSetup?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -240,6 +259,11 @@ function SettingsDrawer({
   const [prereqStatus, setPrereqStatus] = useState<Record<string, PrereqState>>({});
   const [prereqDetail, setPrereqDetail] = useState<Record<string, string>>({});
   const [setupAllRunning, setSetupAllRunning] = useState(false);
+  // Tracks whether the initial prereq.checkAll has resolved. Used to
+  // gate the auto-setup fire so we know which rows actually need work
+  // before kicking off the loop.
+  const [initialChecksDone, setInitialChecksDone] = useState(false);
+  const autoSetupFiredRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -268,9 +292,13 @@ function SettingsDrawer({
             // soft fail: leave everything idle
           }
         }
+        if (mounted) setInitialChecksDone(true);
       } catch {
         // Profiles are a soft feature — silently fall back if missing.
-        if (mounted) setProfileList([]);
+        if (mounted) {
+          setProfileList([]);
+          setInitialChecksDone(true);
+        }
       }
     })();
     return () => {
@@ -340,6 +368,27 @@ function SettingsDrawer({
       setSetupAllRunning(false);
     }
   };
+
+  // Auto-fire setupAll exactly once when the drawer was opened via the
+  // ⚠ Needs setup badge. Gated on initialChecksDone so we never kick a
+  // redundant install on something that's already staged.
+  useEffect(() => {
+    if (!autoSetup) {
+      autoSetupFiredRef.current = false;
+      return;
+    }
+    if (autoSetupFiredRef.current) return;
+    if (!initialChecksDone || !matchedProfile) return;
+    if (matchedProfile.requires.length === 0) return;
+    const hasMissing = matchedProfile.requires.some((r) => {
+      const s = prereqStatus[r] ?? 'idle';
+      return s !== 'ok' && s !== 'manual';
+    });
+    if (!hasMissing) return;
+    autoSetupFiredRef.current = true;
+    setupAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSetup, initialChecksDone, matchedProfile, prereqStatus]);
 
   const applyProfile = (p: Profile) => {
     if (!confirm(`Apply profile "${p.name}"? Overwrites every toggle, env var, dll_overrides, and launch args in this drawer (you still have to click Save to persist).`)) {
