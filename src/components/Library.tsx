@@ -10,8 +10,10 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { library, profiles, runtime, isCellarError } from '../lib/invoke';
-import type { Game, GameSettings, Profile } from '../lib/invoke';
+import { listen } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
+import { library, prereq, profiles, runtime, isCellarError } from '../lib/invoke';
+import type { Game, GameSettings, PrereqDone, Profile } from '../lib/invoke';
 
 export default function Library() {
   const [games, setGames] = useState<Game[] | null>(null);
@@ -180,6 +182,11 @@ function SettingsDrawer({
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
+  // Prereq install state, keyed by require_id.
+  type PrereqState = 'idle' | 'running' | 'ok' | 'failed' | 'manual';
+  const [prereqStatus, setPrereqStatus] = useState<Record<string, PrereqState>>({});
+  const [prereqDetail, setPrereqDetail] = useState<Record<string, string>>({});
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -197,6 +204,46 @@ function SettingsDrawer({
       mounted = false;
     };
   }, [game.name]);
+
+  useEffect(() => {
+    let mounted = true;
+    let unlist: UnlistenFn | null = null;
+    (async () => {
+      const u = await listen<PrereqDone>('cellar://prereq-done', (e) => {
+        if (!mounted) return;
+        if (e.payload.bottle_id !== game.bottle_id) return;
+        setPrereqStatus((s) => ({
+          ...s,
+          [e.payload.require_id]: e.payload.success ? 'ok' : 'failed',
+        }));
+        setPrereqDetail((s) => ({ ...s, [e.payload.require_id]: e.payload.detail }));
+      });
+      if (mounted) unlist = u;
+      else u();
+    })();
+    return () => {
+      mounted = false;
+      if (unlist) unlist();
+    };
+  }, [game.bottle_id]);
+
+  const runPrereq = async (rid: string) => {
+    setPrereqStatus((s) => ({ ...s, [rid]: 'running' }));
+    setPrereqDetail((s) => ({ ...s, [rid]: 'starting...' }));
+    try {
+      await prereq.install(game.bottle_id, rid);
+      // 'ok' state will land via the cellar://prereq-done listener.
+    } catch (err) {
+      const e = isCellarError(err);
+      if (e?.kind === 'manual_action_required') {
+        setPrereqStatus((s) => ({ ...s, [rid]: 'manual' }));
+        setPrereqDetail((s) => ({ ...s, [rid]: String(e.hint ?? 'manual action required') }));
+      } else {
+        setPrereqStatus((s) => ({ ...s, [rid]: 'failed' }));
+        setPrereqDetail((s) => ({ ...s, [rid]: formatErr(err) }));
+      }
+    }
+  };
 
   const applyProfile = (p: Profile) => {
     if (!confirm(`Apply profile "${p.name}"? Overwrites every toggle, env var, dll_overrides, and launch args in this drawer (you still have to click Save to persist).`)) {
@@ -250,9 +297,30 @@ function SettingsDrawer({
           )}
           {matchedProfile && matchedProfile.requires.length > 0 && (
             <ul className="requires-list">
-              {matchedProfile.requires.map((r) => (
-                <li key={r}><code>{r}</code></li>
-              ))}
+              {matchedProfile.requires.map((r) => {
+                const status = prereqStatus[r] ?? 'idle';
+                const detail = prereqDetail[r];
+                return (
+                  <li key={r} className={`require-row require-${status}`}>
+                    <div className="require-name">
+                      <code>{r}</code>
+                      {detail && <span className="require-detail">{detail}</span>}
+                    </div>
+                    <button
+                      className="btn btn-ghost btn-small"
+                      disabled={status === 'running'}
+                      onClick={() => runPrereq(r)}
+                      type="button"
+                    >
+                      {status === 'idle' && 'Install'}
+                      {status === 'running' && 'Installing…'}
+                      {status === 'ok' && 'Re-install'}
+                      {status === 'failed' && 'Retry'}
+                      {status === 'manual' && 'Show how'}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
           <div className="profile-actions">

@@ -132,6 +132,48 @@ the backend gained. New sections, in drawer order:
 
 Both `cargo check` and `tsc --noEmit` clean.
 
+### Added — profile prerequisite runner
+
+Profiles declare `requires` (e.g. `proton_winrt_dlls`,
+`winetricks_mf`, `homebrew_gstreamer`). v0.2 turns those declarations
+into one-click installs in the drawer.
+
+- **`src-tauri/src/prereq.rs`**. New module + Tauri command
+  `prereq_install(bottle_id, require_id)`. Dispatches by
+  `require_id`:
+  - `winetricks_mf` (and other `winetricks_*` ids) delegates to the
+    existing `wine_run_winetricks` for the matching verb.
+  - `proton_winrt_dlls` is a full Rust re-implementation of
+    `scripts/install-proton-winrt.sh`. Detects a GE-Proton tarball at
+    `/tmp/ge-proton.tar.gz`, `~/.cellar/cache/ge-proton.tar.gz`, or
+    `~/Downloads/ge-proton.tar.gz`. Extracts (targeted first, full
+    fallback), stages the WinRT DLL set
+    (`coremessaging.dll`, `wintypes.dll`, `windows.system.dll`,
+    `windows.gaming.input.dll`, `windows.ui.dll`, ...) into the
+    bottle's `system32` (and `syswow64` if the 32-bit dir exists),
+    sets `HKCU\Software\Wine\DllOverrides` to native,builtin for
+    each, and registers the `Windows.System.DispatcherQueue*`
+    activation classes under
+    `HKLM\Software\Microsoft\WindowsRuntime\ActivatableClassId\`.
+    Streams progress as `cellar://prereq` events; emits
+    `cellar://prereq-done` with success + detail. If the tarball is
+    absent, returns `DependencyMissing` with the GE-Proton release
+    URL and the candidate paths.
+  - `homebrew_gstreamer` returns `ManualActionRequired` with the
+    exact `brew install gstreamer gst-libav` command the user has to
+    run themselves (cellar cannot pass the brew/keychain prompt).
+- **Frontend wiring**. The drawer's Profile section turns each
+  `requires` entry into an interactive row: per-prereq Install
+  button with live status (`idle` / `running` / `ok` / `failed` /
+  `manual`), inline last-status detail, retry on failure. Listener
+  on `cellar://prereq-done` flips status when the backend finishes.
+  Per-row CSS: green border on success, red on failure, blue on
+  running, amber on manual-action-required.
+- New `invoke.ts` types: `PrereqLine`, `PrereqDone`. New wrapper:
+  `prereq.install(bottleId, requireId)`.
+
+cargo check + tsc --noEmit both clean.
+
 ## v0.2 (previous main)
 
 The "native FreeArc reader + writer + honest wine verdict" release.

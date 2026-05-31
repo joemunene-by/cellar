@@ -114,6 +114,29 @@ export const profiles = {
   find: (gameName: string) => invoke<Profile | null>('profiles_find', { gameName }),
 };
 
+export const prereq = {
+  install: (bottleId: string, requireId: string) =>
+    invoke<void>('prereq_install', { bottleId, requireId }),
+};
+
+/** Event payloads. cellar://prereq fires per output line during a
+ *  prereq install; cellar://prereq-done fires once when it finishes
+ *  (success or failure). Subscribe via @tauri-apps/api/event listen. */
+export interface PrereqLine {
+  bottle_id: string;
+  require_id: string;
+  line: string;
+  /** "stdout" / "stderr" / "info" */
+  stream: string;
+}
+
+export interface PrereqDone {
+  bottle_id: string;
+  require_id: string;
+  success: boolean;
+  detail: string;
+}
+
 export const runtime = {
   status: () => invoke<RuntimeStatus>('runtime_status'),
   testWine: () => invoke<string>('runtime_test_wine'),
