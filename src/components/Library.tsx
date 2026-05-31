@@ -186,6 +186,7 @@ function SettingsDrawer({
   type PrereqState = 'idle' | 'running' | 'ok' | 'failed' | 'manual';
   const [prereqStatus, setPrereqStatus] = useState<Record<string, PrereqState>>({});
   const [prereqDetail, setPrereqDetail] = useState<Record<string, string>>({});
+  const [setupAllRunning, setSetupAllRunning] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -264,6 +265,29 @@ function SettingsDrawer({
     }
   };
 
+  // "Set up profile" — installs every unsatisfied prereq in sequence.
+  // 'manual' rows are skipped silently (user has to handle them outside
+  // cellar, e.g. `brew install gst-libav`); the row itself surfaces the
+  // instruction so they know what to do.
+  const setupAll = async () => {
+    if (!matchedProfile) return;
+    setSetupAllRunning(true);
+    try {
+      for (const rid of matchedProfile.requires) {
+        const current = prereqStatus[rid] ?? 'idle';
+        if (current === 'ok' || current === 'running' || current === 'manual') continue;
+        await runPrereq(rid);
+        // small pause so the cellar://prereq-done listener for the
+        // previous step has a chance to flip its row to 'ok' before
+        // the next one starts. Not strictly necessary for correctness
+        // but feels much better in the UI.
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    } finally {
+      setSetupAllRunning(false);
+    }
+  };
+
   const applyProfile = (p: Profile) => {
     if (!confirm(`Apply profile "${p.name}"? Overwrites every toggle, env var, dll_overrides, and launch args in this drawer (you still have to click Save to persist).`)) {
       return;
@@ -314,9 +338,34 @@ function SettingsDrawer({
           ) : (
             <p className="muted">No bundled profile matches this game name. Defaults apply.</p>
           )}
-          {matchedProfile && matchedProfile.requires.length > 0 && (
-            <ul className="requires-list">
-              {matchedProfile.requires.map((r) => {
+          {matchedProfile && matchedProfile.requires.length > 0 && (() => {
+            const missing = matchedProfile.requires.filter((r) => {
+              const s = prereqStatus[r] ?? 'idle';
+              return s !== 'ok' && s !== 'manual';
+            });
+            const allDone = missing.length === 0;
+            return (
+              <>
+                <div className="requires-header">
+                  <span className="muted">
+                    {allDone
+                      ? 'All prerequisites installed.'
+                      : `${missing.length} of ${matchedProfile.requires.length} prerequisite${matchedProfile.requires.length === 1 ? '' : 's'} missing.`}
+                  </span>
+                  {!allDone && (
+                    <button
+                      className="btn btn-primary btn-small"
+                      onClick={setupAll}
+                      disabled={setupAllRunning}
+                      type="button"
+                      title="Run every Install button in sequence. Manual-only entries (homebrew etc.) are skipped."
+                    >
+                      {setupAllRunning ? 'Setting up…' : `Set up profile (${missing.length})`}
+                    </button>
+                  )}
+                </div>
+                <ul className="requires-list">
+                  {matchedProfile.requires.map((r) => {
                 const status = prereqStatus[r] ?? 'idle';
                 const detail = prereqDetail[r];
                 return (
@@ -340,8 +389,10 @@ function SettingsDrawer({
                   </li>
                 );
               })}
-            </ul>
-          )}
+                </ul>
+              </>
+            );
+          })()}
           <div className="profile-actions">
             <button
               className="btn"
