@@ -266,19 +266,38 @@ thrash) are fixed by **GPTK** (Apple's wine + **D3DMetal**, the
 D3D9 / 10 / 11 / 12 to Metal translator). The Unity DispatcherQueue
 gap is upstream-wine-wide as of wine 11.x: the WinRT class has
 an IDL header (winehq MR !2489) but no working COM implementation
-in mainline. Verified empirically with the hybrid path —
+in mainline. **Resolved in cellar** via a hybrid runtime:
 cellar wine-staging 11.8 + Whisky's `D3DMetal.framework` +
-Whisky's d3d* forwarder DLLs (see
-`scripts/launch-carxstreet-hybrid.sh`) — the swapchain renders
-and the process survives further than Whisky alone (no Job-system
-deadlock thanks to newer wine), but `RoGetActivationFactory` for
-`Windows.System.DispatcherQueue` still fails and Unity exits on
-the first frame. CrossOver's proprietary patches implement the
-class; only that and the native Mac builds work for Unity 2022+
-IL2CPP titles today on Apple Silicon. Several recent Unity Mac
-ports — including CarX Street itself — now ship a native Apple
-Silicon build via Steam, which sidesteps cellar entirely for
-those titles.
+Whisky's d3d* forwarder DLLs + Proton's WinRT family DLLs
+(`coremessaging.dll`, `wintypes.dll`, `twinapi.appcore.dll`,
+`windows.gaming.input.dll`, etc.) staged into the bottle via
+`scripts/install-proton-winrt.sh`, with the WinRT activation
+registry entries pointing `Windows.System.DispatcherQueue*` at
+`coremessaging.dll`. See `scripts/launch-carxstreet-hybrid.sh`
+for the full env. CarX Street (Unity 2022 IL2CPP + Burst +
+Havok + always-online auth) launches and renders end-to-end on
+M4 with this recipe.
+
+Additional per-title shims wired into the hybrid path:
+- **Native Microsoft `mf.dll`** via `winetricks mf` (the wine
+  builtin is a stub that fails Unity's `CreateObjectFromByteStream`
+  on splash videos).
+- **Homebrew GStreamer + `gst-libav`** for the actual codec
+  decode — wine's `winegstreamer` is the bridge; with
+  `GST_PLUGIN_PATH=/opt/homebrew/lib/gstreamer-1.0` and
+  `DYLD_LIBRARY_PATH=/opt/homebrew/lib` exported, wine routes
+  Media Foundation decode requests through GStreamer + FFmpeg
+  + Apple `VTHW_h264`.
+- **Steam API stub** — Goldberg (`gbe_fork`) is the clean
+  default for non-online titles; for always-online titles whose
+  cracks bundle a local server-response stub (e.g. RUNE for
+  CarX Street), keep the original cracked `steam_api64.dll`
+  alongside the crack's loader (`RUNE64.dll`). Both paths are
+  documented in `scripts/launch-carxstreet-hybrid.sh`.
+
+Several recent Unity Mac ports — including CarX Street itself —
+also ship a native Apple Silicon build via Steam, which sidesteps
+cellar entirely for legit-licensed users.
 
 `scripts/setup-gptk.sh` installs the canonical
 `apple/apple/game-porting-toolkit` formula, with Whisky's bundled

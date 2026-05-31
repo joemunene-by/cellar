@@ -31,6 +31,8 @@ echo "D3DMetal: $WHISKY_LIB/Wine/lib/external/D3DMetal.framework" >> "$LOG"
 env_base=(
   "WINEPREFIX=$PREFIX"
   "DYLD_FRAMEWORK_PATH=$WHISKY_LIB/Wine/lib/external"
+  "DYLD_LIBRARY_PATH=/opt/homebrew/lib"
+  "GST_PLUGIN_PATH=/opt/homebrew/lib/gstreamer-1.0"
   "D3DM_SUPPORT_DXVK_DYLD=1"
   "D3DM_SUPPORT_BUFFER_DEVICE_ADDRESS=1"
   "ROSETTA_ADVERTISE_AVX=1"

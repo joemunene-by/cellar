@@ -1,6 +1,48 @@
 # Changelog
 
-## v0.2 (current main)
+## Unreleased
+
+### Added — modern Unity titles on M-series (CarX Street recipe)
+
+The CarX Street launch tonight validated the hybrid runtime end-to-end
+for a Unity 2022 IL2CPP + Burst + Havok title with always-online auth.
+Locked into the repo:
+
+- **`scripts/install-proton-winrt.sh`** — extracts the WinRT family
+  DLLs (`coremessaging`, `wintypes`, `twinapi.appcore`, the full
+  `windows.*` set) from a GE-Proton tarball, stages them into a
+  cellar bottle's `system32` / `syswow64`, sets DLL overrides to
+  prefer native, and registers `Windows.System.DispatcherQueue*`
+  under `HKLM\Software\Microsoft\WindowsRuntime\ActivatableClassId\`
+  pointing at `coremessaging.dll`. Solves the
+  `RoGetActivationFactory: Failed to find library` wall on wine 11.x
+  without waiting for upstream wine to ship the COM impl.
+- **`scripts/launch-carxstreet-hybrid.sh`** updated with
+  `GST_PLUGIN_PATH=/opt/homebrew/lib/gstreamer-1.0` and
+  `DYLD_LIBRARY_PATH=/opt/homebrew/lib`. Wine's `winegstreamer.so`
+  routes Media Foundation decode through Homebrew's GStreamer +
+  `gst-libav` (FFmpeg) when the host has `brew install gstreamer
+  gst-libav`. Fixes Unity's `WindowsVideoMedia error 0xc00d36bb`
+  on the splash video.
+- **README "known issues" rewrite** — the Unity 2022 IL2CPP entry
+  now documents the working hybrid recipe (Proton WinRT DLLs +
+  Whisky D3DMetal + native Microsoft `mf.dll` from `winetricks mf`
+  + Homebrew GStreamer + the right Steam-stub for the game's crack
+  style) instead of the earlier "blocked" verdict.
+
+### Notes
+
+- Goldberg (`gbe_fork`) is the clean default Steam-API stub for
+  non-online titles. For always-online titles where the crack
+  (e.g. RUNE for CarX Street) bundles its own server-response
+  spoof inside the cracked `steam_api64.dll`, keep that original
+  DLL + its loader (`RUNE64.dll`) — Goldberg only stubs Steam,
+  it does not impersonate game-specific auth backends.
+- The Proton WinRT DLLs work as plain PE binaries loaded into wine
+  on macOS; their imports resolve to wine's combase / kernel32 /
+  ntdll without needing Linux-specific wine extensions.
+
+## v0.2 (previous main)
 
 The "native FreeArc reader + writer + honest wine verdict" release.
 
