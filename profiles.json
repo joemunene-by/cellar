@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "comment": "Per-game runtime profiles. Auto-applied during library_add when a game's name matches `match_name_contains` (case-insensitive). Users override at ~/.cellar/profiles.json which takes precedence over this bundled set.",
+  "profiles": [
+    {
+      "id": "carx-street",
+      "name": "CarX Street",
+      "match_name_contains": ["carx street", "carxstreet"],
+      "description": "Unity 2022 IL2CPP + Burst + Havok. Always-online auth (RUNE-cracked). Needs Proton WinRT DLLs for Windows.System.DispatcherQueue, native Microsoft mf.dll via winetricks mf, and Homebrew GStreamer (gstreamer + gst-libav) for the splash video. Vertex glitch on the player car and AI race competitors is a known Burst+Rosetta-AVX interaction; documented in CHANGELOG.",
+      "settings": {
+        "dxvk": false,
+        "esync": false,
+        "msync": true,
+        "metal_fences": false,
+        "metal_hud": false,
+        "dll_overrides": "winemenubuilder.exe=d;mf=b;mfplat=b;mfreadwrite=b;mfmediaengine=b;mfsrcsnk=b",
+        "env": {
+          "ROSETTA_ADVERTISE_AVX": "1",
+          "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
+          "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS": "2",
+          "MVK_CONFIG_FAST_MATH_ENABLED": "1",
+          "D3DM_SUPPORT_DXVK_DYLD": "1",
+          "D3DM_SUPPORT_BUFFER_DEVICE_ADDRESS": "1"
+        },
+        "launch_args": []
+      },
+      "requires": [
+        "proton_winrt_dlls",
+        "winetricks_mf",
+        "homebrew_gstreamer"
+      ]
+    },
+    {
+      "id": "nfs-most-wanted-2005",
+      "name": "Need for Speed: Most Wanted (2005)",
+      "match_name_contains": ["need for speed most wanted", "nfs most wanted", "nfsmw"],
+      "description": "Classic D3D9 racer. Works clean under Whisky D3DMetal forwarders with Goldberg Steam stub. DXVK preferred over WineD3D for vertex correctness.",
+      "settings": {
+        "dxvk": true,
+        "esync": true,
+        "msync": true,
+        "metal_fences": false,
+        "metal_hud": false,
+        "dll_overrides": null,
+        "env": {
+          "ROSETTA_ADVERTISE_AVX": "1"
+        },
+        "launch_args": []
+      },
+      "requires": []
+    },
+    {
+      "id": "unity-il2cpp-2022",
+      "name": "Generic Unity 2022 IL2CPP",
+      "match_name_contains": [],
+      "description": "Fallback profile for Unity 2022 IL2CPP games that ship lib_burst_generated.dll. Conservative defaults: DXVK off so D3D11 routes through Apple D3DMetal directly (better vertex correctness than DXVK on Unity 2022). MoltenVK env vars present for the rare game that does fall back through MoltenVK.",
+      "settings": {
+        "dxvk": false,
+        "esync": false,
+        "msync": true,
+        "metal_fences": false,
+        "metal_hud": false,
+        "dll_overrides": "winemenubuilder.exe=d",
+        "env": {
+          "ROSETTA_ADVERTISE_AVX": "1",
+          "MVK_CONFIG_USE_METAL_PRIVATE_API": "1"
+        },
+        "launch_args": []
+      },
+      "requires": []
+    }
+  ]
+}

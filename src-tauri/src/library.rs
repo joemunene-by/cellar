@@ -35,6 +35,20 @@ pub struct GameSettings {
     pub esync: bool,
     /// MSYNC is the Apple-Silicon-specific fast synchronisation primitive.
     pub msync: bool,
+    /// MoltenVK fences for low-overhead GPU sync on the DXVK/MoltenVK
+    /// path. No effect when DXVK is off (D3DMetal direct path).
+    #[serde(default)]
+    pub metal_fences: bool,
+    /// Apple's Metal HUD overlay (FPS, GPU usage, frame time). Useful
+    /// for diagnosing perf without touching the game's own HUD code.
+    #[serde(default)]
+    pub metal_hud: bool,
+    /// Extra wine DLL overrides appended to DXVK's d3d11/d3d10core/dxgi
+    /// when DXVK is on. Pass-through to WINEDLLOVERRIDES; semicolon-
+    /// separated. For full control, set `env.WINEDLLOVERRIDES` instead;
+    /// that wins over both DXVK defaults and this field.
+    #[serde(default)]
+    pub dll_overrides: Option<String>,
     /// Extra env vars to set when launching, e.g. {"DXVK_HUD": "fps"}.
     pub env: HashMap<String, String>,
     /// Extra args passed after the .exe path.
@@ -47,6 +61,9 @@ impl Default for GameSettings {
             dxvk: true,
             esync: true,
             msync: true,
+            metal_fences: false,
+            metal_hud: false,
+            dll_overrides: None,
             env: HashMap::new(),
             launch_args: Vec::new(),
         }
@@ -189,6 +206,11 @@ pub fn library_add(
     launch_exe: String,
     library: State<'_, Library>,
 ) -> Result<Game, LibraryError> {
+    // Auto-apply a matching profile's settings. Falls back to defaults
+    // if no profile in the bundled or user set matches the game name.
+    let settings = crate::profiles::find_for(&name)
+        .map(|p| p.settings)
+        .unwrap_or_default();
     let game = Game {
         id: uuid::Uuid::new_v4().to_string(),
         name,
@@ -197,7 +219,7 @@ pub fn library_add(
         launch_exe,
         last_played_ms: None,
         total_play_ms: 0,
-        settings: GameSettings::default(),
+        settings,
     };
     library.add(game.clone())?;
     Ok(game)

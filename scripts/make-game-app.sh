@@ -66,6 +66,10 @@ cat > "$APP_DIR/Contents/Info.plist" <<EOF
   <string>14.0</string>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.games</string>
+  <key>LSPrefersRosetta2AheadOfTime</key>
+  <true/>
+  <key>LSRequiresNativeExecution</key>
+  <false/>
 EOF
 
 if [ -n "$ICON" ] && [ -f "$ICON" ]; then

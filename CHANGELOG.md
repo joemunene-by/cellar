@@ -42,6 +42,61 @@ Locked into the repo:
   on macOS; their imports resolve to wine's combase / kernel32 /
   ntdll without needing Linux-specific wine extensions.
 
+### Added — per-game runtime profiles + extra Metal knobs
+
+The hard-won CarX Street launch recipe (Proton WinRT + MF codec
+overrides + Burst-friendly env vars) was scattered across an
+out-of-tree shell script. v0.2 lifts the configuration into the
+launcher itself so other Unity 2022 IL2CPP titles inherit the same
+treatment automatically.
+
+- **`profiles.json`** at the repo root. Three bundled profiles:
+  - `carx-street`: full Unity 2022 IL2CPP + Burst recipe with the
+    MF codec DLL overrides and the MVK / Rosetta env vars locked in.
+  - `nfs-most-wanted-2005`: DXVK-on D3D9 baseline.
+  - `unity-il2cpp-2022`: conservative fallback for unidentified
+    Unity 2022 IL2CPP titles; `match_name_contains` empty so it is
+    manual-select only.
+
+  Users override at `~/.cellar/profiles.json`. A user profile whose
+  `id` matches a bundled entry shadows the bundled one.
+- **Auto-apply in `library_add`**: a new game's name is matched
+  (case-insensitive substring) against each profile's
+  `match_name_contains`. The first hit's `settings` replace the
+  default starting point; falls back to `GameSettings::default()` if
+  nothing matches. Two new Tauri commands: `profiles_list`,
+  `profiles_find`.
+- **`metal_fences: bool`** in `GameSettings`. Exports
+  `MVK_ALLOW_METAL_FENCES=1` to use Metal fences instead of
+  events/semaphores on the DXVK/MoltenVK path. No effect when DXVK
+  is off (D3DMetal direct path bypasses MoltenVK entirely).
+- **`metal_hud: bool`** in `GameSettings`. Exports
+  `MTL_HUD_ENABLED=1`. Apple's Metal HUD overlay (FPS, GPU usage,
+  frame time) without touching the game's own UI.
+- **`dll_overrides: Option<String>`** in `GameSettings`. Semicolon-
+  separated extras *appended* to the DXVK defaults rather than
+  replacing them. The carx-street profile uses this for the MF
+  codec passthrough (`mf=b;mfplat=b;mfreadwrite=b;mfmediaengine=b;
+  mfsrcsnk=b`).
+- **`LSPrefersRosetta2AheadOfTime=YES`** + `LSRequiresNativeExecution
+  =NO` added to the `Info.plist` that `scripts/make-game-app.sh`
+  emits. The effect on a shell-script wrapper bundle is uncertain
+  (the wine binary is the real translation target, not the bash
+  wrapper) but the flag is harmless and gives Launch Services the
+  right hint if it ever does propagate.
+
+### Changed — `WINEDLLOVERRIDES` composition
+
+`runtime.rs` previously hardcoded `WINEDLLOVERRIDES=d3d11,d3d10core,
+dxgi=n` when DXVK was on, and a per-game `env.WINEDLLOVERRIDES`
+silently replaced the whole string, dropping the DXVK redirectors.
+
+Composition is now: `<DXVK defaults if dxvk on>` + `;` +
+`<settings.dll_overrides>`, then the per-game `env` map still wins
+as a full escape hatch via `Command::env` last-write-wins. This makes
+`settings.dll_overrides` the right field for additive overrides; `env`
+is reserved for total custom rewrites.
+
 ## v0.2 (previous main)
 
 The "native FreeArc reader + writer + honest wine verdict" release.

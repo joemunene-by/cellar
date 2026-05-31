@@ -107,6 +107,8 @@ AppKit / WebKit frameworks link cleanly.)
 ```
 cellar/
   README.md
+  CHANGELOG.md
+  profiles.json           bundled per-game runtime profiles
   package.json
   vite.config.ts
   tsconfig.json
@@ -131,6 +133,7 @@ cellar/
       wine.rs             bottle create / list / remove
       library.rs          ~/.cellar/library.json read / write
       runtime.rs          GPTK detect, DXVK config, launch_game
+      profiles.rs         bundled + user profile loader, name match
       installer.rs        repack detection + install orchestration
       archive.rs          archive_peek (native FreeArc reader)
   freearc-native/         pure-Rust FreeArc reader (own crate)
@@ -223,7 +226,16 @@ path. Per-game schedule. Optional sync of `~/.cellar/library.json`
 across machines via a private git mirror.
 
 **v0.5:** Game-specific shims. Catalogue of "this game needs font X,
-registry tweak Y, launch arg Z". One-click apply.
+registry tweak Y, launch arg Z". One-click apply. Foundation
+landed early via `profiles.json` (bundled set of per-game
+runtime profiles, auto-applied on `library_add` when a game's
+name matches a profile's `match_name_contains`, user overrides
+at `~/.cellar/profiles.json`). The CarX Street hybrid recipe
+(Proton WinRT DLLs + MF codec overrides + the MVK / Rosetta
+env vars) is the first profile to ship. Remaining v0.5 work is
+the install-time runner that materializes a profile's prereqs
+(`winetricks mf`, Proton WinRT staging, Homebrew GStreamer
+install hint) instead of just declaring them in `requires`.
 
 ## license
 

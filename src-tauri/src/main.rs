@@ -10,6 +10,7 @@
 mod archive;
 mod installer;
 mod library;
+mod profiles;
 mod runtime;
 mod wine;
 
@@ -33,6 +34,8 @@ fn main() {
             library::library_add,
             library::library_remove,
             library::library_update_settings,
+            profiles::profiles_list,
+            profiles::profiles_find,
             runtime::runtime_status,
             runtime::runtime_test_wine,
             runtime::runtime_launch,

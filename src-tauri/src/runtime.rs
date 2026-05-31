@@ -201,14 +201,38 @@ pub async fn runtime_launch(
         cmd.arg(arg);
     }
     cmd.env("WINEPREFIX", &prefix);
+
+    // Compose WINEDLLOVERRIDES from the DXVK defaults plus any per-game
+    // additions. The per-game env HashMap is applied last and can fully
+    // replace this if it contains its own WINEDLLOVERRIDES entry — that
+    // is the escape hatch for profiles that need a totally custom set.
+    let mut overrides = String::new();
     if game.settings.dxvk {
-        // Tell wine to prefer the native DXVK DLLs over its own builtins
-        // for the three D3D11 / DXGI redirectors. Without this, even
-        // a DLL-injected bottle still loads the WineD3D builtins.
-        cmd.env("WINEDLLOVERRIDES", "d3d11,d3d10core,dxgi=n");
+        // Native DXVK DLLs over wine's builtins for D3D11 / DXGI.
+        overrides.push_str("d3d11,d3d10core,dxgi=n");
+    }
+    if let Some(extra) = game.settings.dll_overrides.as_deref().map(str::trim) {
+        if !extra.is_empty() {
+            if !overrides.is_empty() {
+                overrides.push(';');
+            }
+            overrides.push_str(extra);
+        }
+    }
+    if !overrides.is_empty() {
+        cmd.env("WINEDLLOVERRIDES", &overrides);
     }
     cmd.env("WINEESYNC", if game.settings.esync { "1" } else { "0" });
     cmd.env("WINEMSYNC", if game.settings.msync { "1" } else { "0" });
+    if game.settings.metal_fences {
+        // MoltenVK uses Metal fences instead of events/semaphores. Lower
+        // overhead on the DXVK/MoltenVK path; no effect when DXVK is off.
+        cmd.env("MVK_ALLOW_METAL_FENCES", "1");
+    }
+    if game.settings.metal_hud {
+        // Apple's Metal HUD overlay (FPS, GPU usage, frame time).
+        cmd.env("MTL_HUD_ENABLED", "1");
+    }
     for (k, v) in &game.settings.env {
         cmd.env(k, v);
     }
