@@ -88,9 +88,14 @@ fi
 cd "$GAME_DIR"
 echo "===== game output =====" >> "$LOG"
 
+# Force the D3D11 backend. v1.11 ships a D3D12/ directory and defaults
+# to D3D12 if available; Apple D3DMetal's D3D11 -> Metal path is more
+# vertex-correct than its D3D12 -> Metal path under macOS 15, so this
+# avoids the metallic-surface vertex glitch on cars + buildings.
+# (v1.6 did not ship D3D12 and ran D3D11 by default.)
 env "${env_base[@]}" \
   WINEDEBUG=err+all,fixme-all \
-  "$WINE" "./$GAME_EXE" >> "$LOG" 2>&1 &
+  "$WINE" "./$GAME_EXE" -force-d3d11 >> "$LOG" 2>&1 &
 
 WPID=$!
 echo "$WPID" > "$PIDFILE"
