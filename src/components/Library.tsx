@@ -10,8 +10,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { library, runtime, isCellarError } from '../lib/invoke';
-import type { Game, GameSettings } from '../lib/invoke';
+import { library, profiles, runtime, isCellarError } from '../lib/invoke';
+import type { Game, GameSettings, Profile } from '../lib/invoke';
 
 export default function Library() {
   const [games, setGames] = useState<Game[] | null>(null);
@@ -139,11 +139,51 @@ function SettingsDrawer({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [settings, setSettings] = useState<GameSettings>(game.settings);
+  // Backfill defaults for older library.json files that predate the
+  // metal_fences / metal_hud / dll_overrides fields.
+  const [settings, setSettings] = useState<GameSettings>({
+    ...game.settings,
+    metal_fences: game.settings.metal_fences ?? false,
+    metal_hud: game.settings.metal_hud ?? false,
+    dll_overrides: game.settings.dll_overrides ?? null,
+  });
   const [envText, setEnvText] = useState(envToText(game.settings.env));
   const [argsText, setArgsText] = useState(game.settings.launch_args.join('\n'));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Profile picker state.
+  const [profileList, setProfileList] = useState<Profile[] | null>(null);
+  const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [all, matched] = await Promise.all([profiles.list(), profiles.find(game.name)]);
+        if (!mounted) return;
+        setProfileList(all);
+        setMatchedProfile(matched);
+      } catch {
+        // Profiles are a soft feature — silently fall back if missing.
+        if (mounted) setProfileList([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [game.name]);
+
+  const applyProfile = (p: Profile) => {
+    if (!confirm(`Apply profile "${p.name}"? Overwrites every toggle, env var, dll_overrides, and launch args in this drawer (you still have to click Save to persist).`)) {
+      return;
+    }
+    setSettings(p.settings);
+    setEnvText(envToText(p.settings.env));
+    setArgsText(p.settings.launch_args.join('\n'));
+    setPickerOpen(false);
+  };
 
   const save = async () => {
     setSaving(true);
@@ -176,6 +216,69 @@ function SettingsDrawer({
         {error && <div className="error-box">{error}</div>}
 
         <section className="drawer-section">
+          <h4>Profile</h4>
+          {matchedProfile ? (
+            <p className="muted">
+              Matches bundled profile <strong>{matchedProfile.name}</strong>.{' '}
+              {matchedProfile.description}
+            </p>
+          ) : (
+            <p className="muted">No bundled profile matches this game name. Defaults apply.</p>
+          )}
+          {matchedProfile && matchedProfile.requires.length > 0 && (
+            <ul className="requires-list">
+              {matchedProfile.requires.map((r) => (
+                <li key={r}><code>{r}</code></li>
+              ))}
+            </ul>
+          )}
+          <div className="profile-actions">
+            <button
+              className="btn"
+              onClick={() => setPickerOpen((v) => !v)}
+              type="button"
+              disabled={!profileList || profileList.length === 0}
+            >
+              {pickerOpen ? 'Hide profiles' : 'Apply profile…'}
+            </button>
+            {matchedProfile && (
+              <button
+                className="btn btn-ghost"
+                onClick={() => applyProfile(matchedProfile)}
+                type="button"
+                title="Re-apply the matched profile's settings, overwriting any local edits"
+              >
+                Re-apply {matchedProfile.name}
+              </button>
+            )}
+          </div>
+          {pickerOpen && profileList && (
+            <ul className="profile-picker">
+              {profileList.map((p) => (
+                <li key={p.id} className="profile-row">
+                  <div className="profile-info">
+                    <strong>{p.name}</strong>
+                    <div className="profile-desc">{p.description}</div>
+                    {p.match_name_contains.length > 0 && (
+                      <div className="profile-match">
+                        matches: {p.match_name_contains.map((s) => `"${s}"`).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => applyProfile(p)}
+                    type="button"
+                  >
+                    Apply
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="drawer-section">
           <h4>Runtime toggles</h4>
           <label className="toggle-row">
             <input
@@ -201,6 +304,48 @@ function SettingsDrawer({
             />
             <span>MSYNC (Apple Silicon fast sync primitive)</span>
           </label>
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              checked={settings.metal_fences}
+              onChange={(e) => setSettings({ ...settings, metal_fences: e.target.checked })}
+              disabled={!settings.dxvk}
+            />
+            <span>
+              Metal Fences <code>MVK_ALLOW_METAL_FENCES=1</code>{' '}
+              <span className="muted">(DXVK/MoltenVK path only)</span>
+            </span>
+          </label>
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              checked={settings.metal_hud}
+              onChange={(e) => setSettings({ ...settings, metal_hud: e.target.checked })}
+            />
+            <span>
+              Metal HUD overlay <code>MTL_HUD_ENABLED=1</code>{' '}
+              <span className="muted">(FPS / GPU / frame time)</span>
+            </span>
+          </label>
+        </section>
+
+        <section className="drawer-section">
+          <h4>DLL overrides</h4>
+          <p className="muted">
+            Appended to DXVK's <code>d3d11,d3d10core,dxgi=n</code> when DXVK is on.
+            Semicolon-separated. Example for Unity 2022 IL2CPP with native MF
+            codecs: <code>mf=b;mfplat=b;mfreadwrite=b;mfmediaengine=b;mfsrcsnk=b</code>.
+            For full override, set <code>WINEDLLOVERRIDES</code> in env vars instead.
+          </p>
+          <input
+            className="input"
+            type="text"
+            value={settings.dll_overrides ?? ''}
+            onChange={(e) =>
+              setSettings({ ...settings, dll_overrides: e.target.value || null })
+            }
+            placeholder="winemenubuilder.exe=d;mf=b;mfplat=b"
+          />
         </section>
 
         <section className="drawer-section">

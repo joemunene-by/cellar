@@ -773,6 +773,75 @@ code {
   flex-shrink: 0;
 }
 
+.toggle-row input[type='checkbox']:disabled + span {
+  opacity: 0.45;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.profile-picker {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid #333;
+  border-radius: 6px;
+  background: #1a1a1a;
+}
+
+.profile-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.profile-row:last-child {
+  border-bottom: none;
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.profile-desc {
+  font-size: 12px;
+  color: #aaa;
+  line-height: 1.4;
+}
+
+.profile-match {
+  font-size: 11px;
+  color: #888;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.requires-list {
+  list-style: disc;
+  margin: 6px 0 0 18px;
+  padding: 0;
+  color: #bbb;
+  font-size: 12px;
+}
+
+.requires-list code {
+  background: #222;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
 textarea.input {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;

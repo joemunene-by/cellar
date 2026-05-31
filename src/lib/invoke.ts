@@ -29,8 +29,24 @@ export interface GameSettings {
   dxvk: boolean;
   esync: boolean;
   msync: boolean;
+  /// MoltenVK fences for low-overhead GPU sync; only matters when DXVK is on.
+  metal_fences: boolean;
+  /// MTL_HUD_ENABLED=1 — Apple's Metal HUD overlay (FPS / GPU / frame time).
+  metal_hud: boolean;
+  /// Extra `WINEDLLOVERRIDES` entries appended to DXVK's defaults.
+  /// Semicolon-separated, e.g. `mf=b;mfplat=b;mfreadwrite=b`.
+  dll_overrides: string | null;
   env: Record<string, string>;
   launch_args: string[];
+}
+
+export interface Profile {
+  id: string;
+  name: string;
+  match_name_contains: string[];
+  description: string;
+  settings: GameSettings;
+  requires: string[];
 }
 
 export interface Game {
@@ -91,6 +107,11 @@ export const library = {
   remove: (id: string) => invoke<void>('library_remove', { id }),
   updateSettings: (id: string, settings: GameSettings) =>
     invoke<void>('library_update_settings', { id, settings }),
+};
+
+export const profiles = {
+  list: () => invoke<Profile[]>('profiles_list'),
+  find: (gameName: string) => invoke<Profile | null>('profiles_find', { gameName }),
 };
 
 export const runtime = {

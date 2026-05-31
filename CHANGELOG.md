@@ -97,6 +97,41 @@ as a full escape hatch via `Command::env` last-write-wins. This makes
 `settings.dll_overrides` the right field for additive overrides; `env`
 is reserved for total custom rewrites.
 
+### Added — frontend wiring for profiles + new toggles
+
+The Library tab's per-game Settings drawer now surfaces everything
+the backend gained. New sections, in drawer order:
+
+- **Profile** at the top. Shows whether the game's name matched a
+  bundled profile (with description and `requires` checklist).
+  "Apply profile…" button opens an inline picker listing every
+  available profile (bundled and user). "Re-apply" button on the
+  matched profile resets the drawer to the profile's defaults
+  after manual edits. Picker rows show profile name, description,
+  and `match_name_contains` patterns for transparency.
+- **Metal Fences** toggle. Greyed out when DXVK is off, since
+  `MVK_ALLOW_METAL_FENCES` only affects the DXVK/MoltenVK path.
+- **Metal HUD** toggle. Always available. Sets `MTL_HUD_ENABLED=1`.
+- **DLL overrides** single-line input, with helper text pointing
+  at the right escape hatch (`env.WINEDLLOVERRIDES` for full
+  override; this field for additive entries on top of DXVK).
+
+`src/lib/invoke.ts`:
+
+- `GameSettings` interface extended with `metal_fences`, `metal_hud`,
+  `dll_overrides`.
+- New `Profile` interface mirroring the Rust struct.
+- New `profiles.list()` and `profiles.find(gameName)` invoke wrappers.
+- Drawer state initialiser backfills the three new fields when an
+  older `library.json` is read (which is what existing installs will
+  have on first upgrade).
+
+`src/styles.css`: adds `.profile-actions`, `.profile-picker`,
+`.profile-row`, `.profile-info`, `.profile-desc`, `.profile-match`,
+`.requires-list` for the new drawer section.
+
+Both `cargo check` and `tsc --noEmit` clean.
+
 ## v0.2 (previous main)
 
 The "native FreeArc reader + writer + honest wine verdict" release.
