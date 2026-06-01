@@ -370,6 +370,35 @@ not permit redistribution. Mechanic:
    `~/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/`
    thereafter.
 
+### FitGirl `cls-*.dll` IPC under CrossOver 26 wine 11.0 — still blocked
+
+After the CarX win, immediately retested the v0.2 blocked path against
+the new CrossOver 26 wine 11.0 now in `~/.cellar/runtime/CrossOver.app/`.
+CodeWeavers' macOS-specific patches do NOT touch the shared-memory IPC
+primitive the FitGirl `cls-*.dll` shim uses to talk to its `_x64.exe`
+worker. Same failure as upstream wine, just faster:
+
+- `scripts/cls-smoke.sh` still PASSes on all 8 plugins (always did;
+  smoke only verifies LoadLibrary + ClsMain dispatch plumbing).
+- `fg-arc-x` end-to-end on `fg-05.bin` (the CoD-MW3 FitGirl test
+  archive from v0.2): `ClsMain(CLS_DECOMPRESS)` returns `-1`
+  instantly with zero callbacks fired. 28 of 30 files use the
+  `srep+dispack070+delta+lollypop` codec chain and get skipped.
+  The 2 written files use `storing`/`lzma`/`zstd` (native paths in
+  `freearc-native`, no wine involved).
+- Process exits cleanly in ~15 s. Upstream wine 11.8 hung at 0 % CPU
+  for 10+ min; CrossOver wine fails faster but still fails.
+
+The wall is in wine's underlying kernel32 file-mapping + named-event
+implementation on Apple Silicon, deeper than any wine fork has
+patched. v0.2's "Blocked (won't ship)" verdict stands. Don't
+re-invest until a NEW variable arrives (wine 12, a future CrossOver
+release with kernel32 file-mapping fixes, or someone landing the fix
+upstream).
+
+The exact retry recipe for future sessions is captured in the
+`project_cellar_wine_cls_block.md` memory.
+
 #### Wine-on-macOS bonus lesson (worth a bottle-health check)
 
 When wine first runs against a fresh prefix, wineboot copies a set of
