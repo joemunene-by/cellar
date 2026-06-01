@@ -295,6 +295,95 @@ the needle in further tests. The Burst-disable nuke
 (`mv lib_burst_generated.dll`) was NOT tested because the SSR
 reduction was acceptable as an end-of-session stopping point.
 
+### Vertex glitch — RESOLVED via D3DMetal 3.0 swap
+
+The session continued past the SSR-off stopping point. Late-night
+run-through of the full evidence ladder:
+
+| Test                                        | Outcome                          |
+| ------------------------------------------- | -------------------------------- |
+| In-game Reflections Off                     | partial reduction                |
+| `-force-d3d11` Unity launch arg             | no effect                        |
+| Anti-Aliasing Off                           | no effect                        |
+| `mv lib_burst_generated.dll` (Burst disable)| no effect — Burst ruled out      |
+| Swap Whisky's D3DMetal.framework 2.0 -> 3.0 | **vertex glitch gone**           |
+
+Root cause confirmed: D3DMetal 2.0's DXBC -> Metal AIR shader
+translator mistranslates `min16float` (half-precision) types in
+Unity URP Lit BRDF math. PBR metallic surfaces hit the half-precision
+path; matte/Lambert surfaces do not. D3DMetal 3.0 (Feb 2026) ships
+a rewritten translator that handles the half types correctly. Source:
+the agent research linked in this session's transcript identified the
+exact Unity issue ([URP Mobile precision noise on Specular
+Highlights](https://issuetracker.unity3d.com/issues/urp-mobile-precision-related-noise-appears-around-specular-highlights-when-using-android-or-ios-platform)),
+plus Apple MSL spec confirms `-fno-fast-math` is compile-time only
+(no runtime knob exists — every env-var "fast-math toggle" the AI
+assistants suggested was hallucinated).
+
+#### Final working stack
+
+- Game payload: CarX Street v1.11.0 SteamRIP/RUNE.
+- Bottle: `~/.cellar/bottles/carxstreet-hybrid/` (clean Win10 prefix,
+  Proton WinRT DLLs staged, MF codecs via winetricks earlier).
+- **Wine**: CrossOver 26.1.0's `lib/wine/x86_64-unix/wine` (wine 11.0
+  base + CodeWeavers patches; vanilla cellar wine 11.8 also worked
+  for everything except the d3d* forwarder ABI).
+- **Wineserver**: CrossOver 26.1.0's `CrossOver-Hosted Application/
+  wineserver`.
+- **D3DMetal.framework**: 3.0 from CrossOver 26's
+  `lib64/apple_gptk/external/D3DMetal.framework`. Replaces Whisky's
+  bundled 2.0.
+- **libd3dshared.dylib**: 3.0 from the same path. The all-in-one
+  host-side bridge; the `.so` files in `wine/x86_64-unix/` are all
+  symlinks pointing at this one binary.
+- **d3d11.dll / d3d12.dll / dxgi.dll forwarders**: the apple_gptk
+  versions from CrossOver 26's `lib64/apple_gptk/wine/x86_64-windows/`,
+  placed at the *default* `lib/wine/x86_64-windows/` location (wine
+  treats files with wine markers as "builtin" regardless of where
+  they sit in the prefix, so the only way to force apple_gptk is to
+  put it in the builtin search path). Originals saved as
+  `.wined3d-backup` for revert.
+- **WINEDLLOVERRIDES**: `winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b`.
+- **CX_ROOT** env var: pointing at the CrossOver `SharedSupport/CrossOver`
+  dir so CrossOver's `cxcompatdb` module initialises without errors.
+- **DYLD_FRAMEWORK_PATH** + **WINEDLLPATH** also point at the CrossOver
+  externals so dyld finds D3DMetal 3.0 and wine finds the apple_gptk
+  forwarders.
+
+#### How to acquire D3DMetal 3.0 legally
+
+CrossOver itself is *not* bundled in cellar — CodeWeavers' EULA does
+not permit redistribution. Mechanic:
+
+1. Download the CrossOver trial DMG from
+   https://www.codeweavers.com/crossover/download-now (no purchase
+   required; free 14-day trial). On macOS the download lands as
+   `crossover-26.X.X.zip`.
+2. Extract the zip. You will have a `CrossOver.app` bundle.
+3. Move it to `~/.cellar/runtime/CrossOver.app`. The CrossOver
+   trial expiration is irrelevant — cellar does not launch the
+   CrossOver app; it only reads the binaries inside.
+4. Replace the default `lib/wine/x86_64-windows/{d3d11,d3d12,dxgi}.dll`
+   with the apple_gptk versions from `lib64/apple_gptk/wine/x86_64-windows/`
+   (back up the originals first as `.wined3d-backup`).
+5. The cellar launcher reads everything from
+   `~/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/`
+   thereafter.
+
+#### Wine-on-macOS bonus lesson (worth a bottle-health check)
+
+When wine first runs against a fresh prefix, wineboot copies a set of
+its own builtin DLLs into `drive_c/windows/system32/` to satisfy
+"native" overrides. Our first attempt staged the apple_gptk DLLs at
+the prefix system32 path, but wineboot *overwrote them with its own
+WineD3D-based builtins* on next launch. The only reliable way to
+make wine pick the apple_gptk forwarders was to put them at the wine
+builtin path itself (`lib/wine/x86_64-windows/`) where wineboot does
+not touch them. Worth a future cellar bottle-health check: warn if a
+known-named DLL in `prefix/drive_c/windows/system32/` matches the
+SHA-1 of wine's builtin (i.e., wineboot has stomped a user-staged
+DLL).
+
 ## v0.2 (previous main)
 
 The "native FreeArc reader + writer + honest wine verdict" release.

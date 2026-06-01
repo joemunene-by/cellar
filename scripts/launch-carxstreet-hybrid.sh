@@ -1,10 +1,27 @@
 #!/bin/bash
-# CarX Street via hybrid: cellar's wine-staging 11.8 (has DispatcherQueue)
-# + Whisky's D3DMetal.framework loaded via DYLD + Whisky's d3d* forwarder
-# DLLs staged into the bottle's system32/syswow64.
+# CarX Street via cellar's hybrid runtime, final form:
+#
+#   wine        = CrossOver 26.1.0 wine 11.0 (CodeWeavers' patched build)
+#   D3DMetal   = 3.0 (from CrossOver 26's lib64/apple_gptk/external/)
+#   forwarders = apple_gptk d3d11.dll/d3d12.dll/dxgi.dll, ABI-matched to D3DMetal 3.0
+#   bottle     = cellar-managed prefix at ~/.cellar/bottles/carxstreet-hybrid/
+#
+# CrossOver itself is NOT bundled in cellar (EULA). The user downloads the
+# 14-day trial DMG from codeweavers.com, extracts CrossOver.app, moves it
+# to ~/.cellar/runtime/CrossOver.app. The trial does not need to be active
+# or even launchable; we only consume the framework + wine binaries inside
+# the bundle. See CHANGELOG for the full extract-and-rewire procedure.
+#
+# Why: D3DMetal 2.0's DXBC -> Metal AIR shader translator mistranslates
+# `min16float` (half-precision) types in Unity URP Lit BRDF math, which
+# turns metallic PBR surfaces into a dithered/checkerboard noise pattern
+# at runtime. D3DMetal 3.0 fixed the translator. Whisky's bundled
+# D3DMetal is still 2.0 (Whisky archived 2025-05); CrossOver 26 is the
+# only widely-shipping source of 3.0 outside Apple's GPTK 3.0-3, which
+# itself has not been updated since March 2025.
 set -u
-WINE="/Users/ghost/.cellar/wine-staging/Wine Staging.app/Contents/Resources/wine/bin/wine"
-WINESERVER="/Users/ghost/.cellar/wine-staging/Wine Staging.app/Contents/Resources/wine/bin/wineserver"
+WINE="$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/lib/wine/x86_64-unix/wine"
+WINESERVER="$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/CrossOver-Hosted Application/wineserver"
 WHISKY_LIB="/Users/ghost/Library/Application Support/com.isaacmarovitz.Whisky/Libraries"
 WHISKY_X64="$WHISKY_LIB/Wine/lib/wine/x86_64-windows"
 WHISKY_X32="$WHISKY_LIB/Wine/lib/wine/i386-windows"
@@ -30,14 +47,16 @@ echo "D3DMetal: $WHISKY_LIB/Wine/lib/external/D3DMetal.framework" >> "$LOG"
 
 env_base=(
   "WINEPREFIX=$PREFIX"
-  "DYLD_FRAMEWORK_PATH=$WHISKY_LIB/Wine/lib/external"
+  "DYLD_FRAMEWORK_PATH=$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/lib64/apple_gptk/external"
+  "WINEDLLPATH=$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/lib64/apple_gptk/wine/x86_64-windows:$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/lib/wine/x86_64-windows"
+  "CX_ROOT=$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver"
   "DYLD_LIBRARY_PATH=/opt/homebrew/lib"
   "GST_PLUGIN_PATH=/opt/homebrew/lib/gstreamer-1.0"
   "D3DM_SUPPORT_DXVK_DYLD=1"
   "D3DM_SUPPORT_BUFFER_DEVICE_ADDRESS=1"
   "ROSETTA_ADVERTISE_AVX=1"
   "WINEESYNC=0"
-  "WINEDLLOVERRIDES=winemenubuilder.exe=d"
+  "WINEDLLOVERRIDES=winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b"
   "MVK_CONFIG_USE_METAL_PRIVATE_API=1"
   "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=2"
   "MVK_CONFIG_FAST_MATH_ENABLED=1"
