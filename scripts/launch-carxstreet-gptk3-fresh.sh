@@ -30,7 +30,7 @@ env_base=(
   "DYLD_FRAMEWORK_PATH=$GPTK_EXTERNAL"
   "ROSETTA_ADVERTISE_AVX=1"
   "WINEESYNC=0"
-  "WINEDLLOVERRIDES=winemenubuilder.exe=d;mf=b;mfplat=b;mfreadwrite=b;mfmediaengine=b;mfsrcsnk=b"
+  "WINEDLLOVERRIDES=winemenubuilder.exe=;mf=b;mfplat=b;mfreadwrite=b;mfmediaengine=b;mfsrcsnk=b"
   "MVK_CONFIG_USE_METAL_PRIVATE_API=1"
 )
 

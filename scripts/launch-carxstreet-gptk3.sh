@@ -46,7 +46,7 @@ env_base=(
   "D3DM_SUPPORT_BUFFER_DEVICE_ADDRESS=1"
   "ROSETTA_ADVERTISE_AVX=1"
   "WINEESYNC=0"
-  "WINEDLLOVERRIDES=winemenubuilder.exe=d;mf=b;mfplat=b;mfreadwrite=b;mfmediaengine=b;mfsrcsnk=b"
+  "WINEDLLOVERRIDES=winemenubuilder.exe=;mf=b;mfplat=b;mfreadwrite=b;mfmediaengine=b;mfsrcsnk=b"
   "MVK_CONFIG_USE_METAL_PRIVATE_API=1"
   "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=2"
 )

@@ -89,7 +89,7 @@ WHISKY_LIB="/Users/ghost/Library/Application Support/com.isaacmarovitz.Whisky/Li
 env_base=(
   "WINEPREFIX=$PREFIX"
   "DYLD_FRAMEWORK_PATH=$WHISKY_LIB/Wine/lib/external"
-  "WINEDLLOVERRIDES=winemenubuilder.exe=d"
+  "WINEDLLOVERRIDES=winemenubuilder.exe="
 )
 for dll in windows.system windows.gaming.input windows.media windows.ui twinapi.appcore coremessaging wintypes threadpoolwinrt; do
   env "${env_base[@]}" WINEDEBUG=-all "$WINE" reg add \

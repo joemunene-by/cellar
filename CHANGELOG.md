@@ -2,6 +2,71 @@
 
 ## Unreleased
 
+### Fixed — eight factual / code bugs in the engine-family profiles
+
+Audit pass on the just-shipped engine-family profiles surfaced eight
+real errors. None of these games are testable yet (waiting on the SSD
++ extraction), so the only cost has been incorrect docs and stale
+settings; fixing them before the first test boot.
+
+1. **`winemenubuilder.exe=d` does not disable winemenubuilder.**
+   Wine's parser silently ignores `d` (per lutris #1183: "WINE runner
+   ignoring valid 'd'") and falls through to default load order
+   (builtin). The only valid disable form in wine's grammar is empty
+   value `winemenubuilder.exe=`. This was a long-standing bug across
+   the original CarX, NFS:MW, FIFA, and all eight launcher scripts +
+   profiles.json. Fixed across the whole repo via sed.
+
+2. **Elden Ring `-dx11` is a fake flag.** Elden Ring is DX12-only
+   at engine build time; no `-dx11` toggle exists (PCGamingWiki, Steam
+   discussions). Removed from `unreal-engine-4-5` profile launch_args
+   and updated the description to note that neither Elden Ring nor
+   Hogwarts Legacy accept the flag.
+
+3. **Hogwarts Legacy `-dx11` is a fake flag.** Same: DX12-only,
+   Portkey official FAQ says "DX12 required" with no DX11 workaround.
+
+4. **GTA V `socialclub=` does not bypass Rockstar Games Launcher.**
+   Removing the override doesn't bypass RGL; socialclub.dll is part
+   of the integrity check path and disabling it just breaks startup.
+   The real bypass options are the No_GTAVLauncher exe replacement,
+   the ExeIntegrityBypassAgainstRGL ASI plugin, or a cracked build
+   that ships a pre-patched GTA5.exe. Removed the socialclub override
+   from `rage-rockstar` and documented the real options in the
+   description.
+
+5. **Ubisoft `uplay_r1_loader,uplay_r1_loader64=` empty override is
+   wrong mechanism.** Acidicoala's UplayR1Unlocker (and SkidrowReloaded
+   / CODEX style cracks) ship a *replacement* uplay_r1_loader.dll
+   alongside the game exe. An empty override would make LoadLibrary
+   return NULL and the game would treat that as a fatal init error.
+   Removed the override from `anvilnext-ubisoft` and documented that
+   the bypass is "place the unlocker DLL in the game dir", not an
+   env-level disable.
+
+6. **Witcher 3 native Mac port — wrong.** CDPR shipped native Apple
+   Silicon ports of Witcher 1 and 2 in late 2023, NOT Witcher 3.
+   AppleGamingWiki and notebookcheck (testing on macOS Tahoe 26) both
+   confirm Witcher 3 still runs through CrossOver / wine on Mac.
+   Description in `redengine` profile updated.
+
+7. **RDR2 `-vulkan` flag — wrong spelling.** The actual command-line
+   selector is `-sgadriver=Vulkan` (or `-sgadriver=DX12`), per the
+   PCGamingWiki talk page and Steam community thread. `-vulkan` is
+   not in any official source. Description in `rage-rockstar` updated.
+
+8. **Forza Horizon 5 WinRT requirement — speculative.** The Steam
+   build uses XInput, not Windows.Gaming.Input WinRT. ProtonDB FH5
+   reports are about controller remapping, not WinRT staging. The
+   Microsoft Store UWP build does need WinRT but is not viable under
+   wine anyway. Removed `proton_winrt_dlls` from the `forzatech`
+   `requires` list and updated the description to flag that only the
+   Steam build is a realistic target.
+
+The audit was the responsible step before any test boot, since
+shipping recipes that don't match reality would have wasted hours
+debugging the wrong things on first contact with the actual games.
+
 ### Added — ten engine-family profiles + generic profile-driven launcher
 
 Big batch of runtime profiles covering the AAA single-player game

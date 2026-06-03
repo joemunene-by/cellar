@@ -13,7 +13,7 @@
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d;mf=b;mfplat=b;mfreadwrite=b;mfmediaengine=b;mfsrcsnk=b",
+        "dll_overrides": "winemenubuilder.exe=;mf=b;mfplat=b;mfreadwrite=b;mfmediaengine=b;mfsrcsnk=b",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1",
           "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
@@ -60,7 +60,7 @@
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
+        "dll_overrides": "winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1",
           "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
@@ -86,7 +86,7 @@
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
+        "dll_overrides": "winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1",
           "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
@@ -105,14 +105,14 @@
       "id": "rage-rockstar",
       "name": "Rockstar RAGE engine",
       "match_name_contains": ["gta v", "gta 5", "grand theft auto v", "gta iv", "gta 4", "grand theft auto iv", "red dead redemption 2", "rdr2", "max payne 3"],
-      "description": "Rockstar Advanced Game Engine. GTA V supports D3D11 and DX10.1 (we route D3D11 via D3DMetal). GTA IV needs the xlive.dll bypass for Games for Windows Live (most cracked builds ship it). RDR2 supports DX12 and Vulkan via -vulkan launch flag (Vulkan path via MoltenVK has been more stable than DX12-via-D3DMetal on Linux Proton). Online (GTA Online, RDR Online) is a hard block: Take-Two has banned wine sessions and uses BattlEye on online RDR2; only single-player works. Use standalone / pre-cracked builds (SteamRIP, GoldbergStub) to skip Rockstar Games Launcher.",
+      "description": "Rockstar Advanced Game Engine. GTA V supports D3D11 and DX10.1 (we route D3D11 via D3DMetal). GTA IV needs the xlive.dll bypass for Games for Windows Live (most cracked builds ship it). RDR2 supports DX12 and Vulkan, selected via the `-sgadriver=Vulkan` command-line flag (NOT bare `-vulkan`); the Vulkan path via MoltenVK has historically been more stable than DX12-via-D3DMetal. Online (GTA Online, RDR Online) is a hard block: Take-Two has banned wine sessions. Use standalone / pre-cracked builds (SteamRIP, Online-Fix) to skip Rockstar Games Launcher. Disabling socialclub.dll via WINEDLLOVERRIDES does NOT bypass RGL; socialclub.dll is part of the integrity-check path and removing it breaks startup. Real bypass options: (a) the No_GTAVLauncher exe replacement, (b) the ExeIntegrityBypassAgainstRGL.asi plugin, or (c) a cracked build that ships its own pre-patched GTA5.exe.",
       "settings": {
         "dxvk": false,
         "esync": false,
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=;socialclub=",
+        "dll_overrides": "winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1",
           "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
@@ -138,7 +138,7 @@
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d;d3d9=n,b",
+        "dll_overrides": "winemenubuilder.exe=;d3d9=n,b",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1"
         },
@@ -150,21 +150,21 @@
       "id": "unreal-engine-4-5",
       "name": "Unreal Engine 4 / 5 single-player AAAs",
       "match_name_contains": ["elden ring", "sekiro", "dark souls iii", "dark souls 3", "ds3", "hogwarts legacy", "hellblade", "borderlands 3", "satisfactory"],
-      "description": "UE4 / UE5 single-player titles. Anti-cheat (Elden Ring's EAC, Fortnite's BattlEye+EAC) is the wall; cracked or single-player-only builds skip it. Most UE games respect the -dx11 launch flag, which forces D3D11 over the DX12 default and avoids the bindless / min16float shader path that breaks D3DMetal. Vcrun2019 + Vcrun2022 + d3dcompiler_47 are the standard winetricks set. UE5 (Hogwarts Legacy, future titles) adds Nanite + Lumen shader stutters that are unrelated to wine but worth knowing.",
+      "description": "UE4 / UE5 single-player titles. Anti-cheat (Elden Ring's EAC, Fortnite's BattlEye+EAC) is the wall; cracked or single-player-only builds skip it. Note: contrary to common UE4 convention, neither Elden Ring nor Hogwarts Legacy accept a `-dx11` command-line flag; both are DX12-only at engine build time (FromSoft / Portkey both confirm this). For those titles, the only path is Frostbite's DX12 -> D3DMetal 3.0, same shader-class risk as CarX pre-fix. UE titles that DO ship with a DX11 fallback (Borderlands 3, Sekiro on older patches) can have it set via `-dx11` if cellar users want to add that arg manually per game. Vcrun2019 + Vcrun2022 + d3dcompiler_47 are the standard winetricks set. UE5 (Hogwarts Legacy, future titles) adds Nanite + Lumen shader stutters that are unrelated to wine but worth knowing.",
       "settings": {
         "dxvk": false,
         "esync": false,
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
+        "dll_overrides": "winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1",
           "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
           "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS": "2",
           "MVK_CONFIG_FAST_MATH_ENABLED": "1"
         },
-        "launch_args": ["-dx11"]
+        "launch_args": []
       },
       "requires": [
         "winetricks_vcrun2019",
@@ -184,7 +184,7 @@
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
+        "dll_overrides": "winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1",
           "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
@@ -203,14 +203,14 @@
       "id": "anvilnext-ubisoft",
       "name": "Ubisoft AnvilNext / Disrupt / Dunia",
       "match_name_contains": ["assassin's creed origins", "assassin's creed odyssey", "assassin's creed valhalla", "assassin's creed black flag", "ac origins", "ac odyssey", "ac valhalla", "far cry 5", "far cry 6", "watch dogs legion", "watch dogs 2", "the division 2"],
-      "description": "Ubisoft engine titles (AnvilNext for AC, Dunia for Far Cry, Disrupt for Watch Dogs). Ubisoft Connect launcher is the wall; cracked / SkidrowReloaded standalone builds skip it via stripped uplay_r1_loader. DX11 default on most; AC Valhalla and AC Mirage default DX12. Online anti-cheat (The Division 2's BattlEye) blocks online play; single-player works. Add `uplay_r1_loader,uplay_r1_loader64=` to dll_overrides to neutralize the launcher requirement.",
+      "description": "Ubisoft engine titles (AnvilNext for AC, Dunia for Far Cry, Disrupt for Watch Dogs). DX11 default on most; AC Valhalla and AC Mirage default DX12. Online anti-cheat (The Division 2's BattlEye) blocks online play; single-player works. Ubisoft Connect bypass: cracked builds (acidicoala's UplayR1Unlocker, SkidrowReloaded, CODEX) ship a REPLACEMENT uplay_r1_loader.dll alongside the game exe that stubs auth and returns success. An empty WINEDLLOVERRIDES override for uplay_r1_loader would just make LoadLibrary fail and abort the game; the correct mechanism is to ensure the unlocker DLL is present in the game dir, not to override anything in env.",
       "settings": {
         "dxvk": false,
         "esync": false,
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=;uplay_r1_loader,uplay_r1_loader64=",
+        "dll_overrides": "winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1",
           "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
@@ -229,14 +229,14 @@
       "id": "redengine",
       "name": "CDPR REDengine 3 / 4",
       "match_name_contains": ["cyberpunk 2077", "the witcher 3", "witcher 3"],
-      "description": "CDPR's REDengine. The Witcher 3 has a native macOS port from CDPR and Apple Silicon support; prefer the native version if available, fall back to this profile for the Windows-via-wine path. Cyberpunk 2077 is DX12 only and uses bindless + heavy shader compile; same class of shader that broke CarX before D3DMetal 3.0, so worth trying but expect crashes. No anti-cheat for single-player.",
+      "description": "CDPR's REDengine. Note: CDPR shipped native Apple Silicon ports of The Witcher 1 and 2 in late 2023, but NOT The Witcher 3, which remains a wine / CrossOver target on Mac (notebookcheck reports it hitting 60 FPS via CrossOver Metal 4 on macOS Tahoe). Cyberpunk 2077 is DX12-only and uses bindless + heavy shader compile; same class of shader that broke CarX before D3DMetal 3.0, so worth trying but expect crashes. No anti-cheat for single-player on either title.",
       "settings": {
         "dxvk": false,
         "esync": false,
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
+        "dll_overrides": "winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1",
           "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
@@ -262,7 +262,7 @@
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d;d3d9,d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
+        "dll_overrides": "winemenubuilder.exe=;d3d9,d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1",
           "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
@@ -281,14 +281,14 @@
       "id": "forzatech",
       "name": "ForzaTech (Forza Horizon)",
       "match_name_contains": ["forza horizon 4", "forza horizon 5", "fh4", "fh5"],
-      "description": "Forza Horizon games via ForzaTech. DX12 only, no DX11 fallback. Like modern Unity titles, ForzaTech uses Windows.Gaming.Input WinRT classes that wine 11 does not implement, so the cellar hybrid stack pulls in Proton's WinRT family DLLs (coremessaging, wintypes, windows.gaming.input.dll, etc.) via scripts/install-proton-winrt.sh. Online required for some game modes (festival playlist, online adventure); offline solo campaign works on cracked / standalone builds.",
+      "description": "Forza Horizon games via ForzaTech. DX12 only, no DX11 fallback. Two build variants ship: the Steam build uses XInput and works through the standard cellar hybrid runtime without WinRT staging; the Microsoft Store (UWP) build depends on UAP / WinRT classes and is functionally non-viable under wine (Proton WinRT staging hacks for UWP are notoriously broken, per ProtonDB FH5 reports). Only the Steam build is a realistic target. Online required for festival playlist / online adventure; offline solo campaign works on cracked / standalone builds.",
       "settings": {
         "dxvk": false,
         "esync": false,
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
+        "dll_overrides": "winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1",
           "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
@@ -298,7 +298,6 @@
         "launch_args": []
       },
       "requires": [
-        "proton_winrt_dlls",
         "winetricks_vcrun2019",
         "winetricks_corefonts",
         "winetricks_d3dcompiler_47"
@@ -315,7 +314,7 @@
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
+        "dll_overrides": "winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1",
           "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
@@ -341,7 +340,7 @@
         "msync": true,
         "metal_fences": false,
         "metal_hud": false,
-        "dll_overrides": "winemenubuilder.exe=d",
+        "dll_overrides": "winemenubuilder.exe=",
         "env": {
           "ROSETTA_ADVERTISE_AVX": "1",
           "MVK_CONFIG_USE_METAL_PRIVATE_API": "1"

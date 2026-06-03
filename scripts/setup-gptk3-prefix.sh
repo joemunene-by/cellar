@@ -21,7 +21,7 @@ mkdir -p "$(dirname "$PREFIX")"
 env_base=(
   "WINEPREFIX=$PREFIX"
   "DYLD_FRAMEWORK_PATH=$GPTK_EXTERNAL"
-  "WINEDLLOVERRIDES=winemenubuilder.exe=d;mf=b;mfplat=b;mfreadwrite=b;mfmediaengine=b;mfsrcsnk=b"
+  "WINEDLLOVERRIDES=winemenubuilder.exe=;mf=b;mfplat=b;mfreadwrite=b;mfmediaengine=b;mfsrcsnk=b"
 )
 
 echo "=== step 1: wineboot --init under GPTK 3 wine ==="

@@ -34,7 +34,7 @@ env_base=(
   "D3DM_SUPPORT_BUFFER_DEVICE_ADDRESS=1"
   "ROSETTA_ADVERTISE_AVX=1"
   "WINEMSYNC=1"
-  "WINEDLLOVERRIDES=winemenubuilder.exe=d"
+  "WINEDLLOVERRIDES=winemenubuilder.exe="
 )
 
 if [ ! -d "$PREFIX/drive_c" ]; then

@@ -73,7 +73,7 @@ env_base=(
   "DYLD_LIBRARY_PATH=/opt/homebrew/lib"
   "ROSETTA_ADVERTISE_AVX=1"
   "WINEESYNC=0"
-  "WINEDLLOVERRIDES=winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64="
+  "WINEDLLOVERRIDES=winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64="
   "MVK_CONFIG_USE_METAL_PRIVATE_API=1"
   "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=2"
   "MVK_CONFIG_FAST_MATH_ENABLED=1"
