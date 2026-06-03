@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Added — `cellar status` + `cellar self-update`
+
+Two more dispatch targets on the CLI for everyday housekeeping.
+
+- **`cellar status`** (`scripts/cellar-status.sh`) — at-a-glance
+  overview of local cellar state: wine + D3DMetal versions, list of
+  bottles with size + last-touched + backup-count per row, library
+  size, count of launcher logs in `/tmp`, and whether the
+  `dev.cellar.watch-games` launchd agent is loaded. Useful as the
+  "where am I" check before diving into a debug or maintenance task.
+
+- **`cellar self-update`** (`scripts/self-update.sh`) —
+  `git fetch && git merge --ff-only origin/main` against the
+  cellar repo, then re-run `validate-profiles.sh` and
+  `cellar-doctor.sh` on the new state and print the commit log of
+  what was applied. Refuses to run if the working tree is dirty
+  (no silent stash-and-pop, no merge conflicts on a tool repo).
+  `--check` mode just reports "you are N commits behind" without
+  modifying anything.
+
 ### Added — bottle uninstaller + bash/zsh completion for cellar CLI
 
 Continued polish on the user loop.

@@ -13,6 +13,8 @@
 #   app <profile> <game>          make a clickable .app bundle
 #   inspect <bottle>    bottle-inspect.sh
 #   uninstall <bottle>  remove a bottle (use --all to nuke .app + logs + backups)
+#   status              local overview (bottles, runtime, backups, watcher)
+#   self-update         git pull origin main + re-validate
 #   logs                cellar-logs.sh (list / tail launcher logs)
 #   analyze [log]       analyze-log.sh on the given (or most recent) log
 #   crash [bottle]      crash-report.sh (bundle for issue submission)
@@ -70,6 +72,8 @@ case "$cmd" in
   validate)  exec "$SCRIPTS/validate-profiles.sh" "$@" ;;
   uninstall) exec "$SCRIPTS/uninstall-bottle.sh" "$@" ;;
   setup)     exec "$SCRIPTS/setup-gptk.sh" "$@" ;;
+  status)    exec "$SCRIPTS/cellar-status.sh" "$@" ;;
+  self-update|update) exec "$SCRIPTS/self-update.sh" "$@" ;;
   profiles)
     jq -r '.profiles[] | "  " + .id + " — " + .name' "$CELLAR_ROOT/profiles.json"
     ;;
