@@ -1,0 +1,85 @@
+#compdef cellar
+# Zsh completion for the cellar CLI.
+#
+# Install: place this file (named _cellar, no extension) somewhere on $fpath:
+#   mkdir -p ~/.zsh/completions
+#   ln -s /path/to/cellar/completions/_cellar ~/.zsh/completions/_cellar
+#   echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
+#   echo 'autoload -U compinit; compinit' >> ~/.zshrc
+
+_cellar() {
+  local -a commands
+  commands=(
+    'doctor:runtime health check'
+    'find:find profile matching a game name'
+    'install:proactive bottle setup'
+    'launch:launch via the generic engine launcher'
+    'app:make a clickable .app bundle'
+    'inspect:bottle introspection'
+    'logs:browse launcher logs'
+    'analyze:scan a log for failure patterns'
+    'crash:bundle a crash report'
+    'backup:tarball a bottle'\'' saves'
+    'watch:watch ~/Games-source for new games'
+    'd3dmetal:per-bottle D3DMetal pinning'
+    'validate:profiles.json schema check'
+    'profiles:list all profile ids'
+    'uninstall:remove a bottle cleanly'
+    'setup:run setup-gptk.sh'
+    'version:print cellar git rev + tag'
+    'help:show command list'
+    'fifa:launch-fifa.sh <14..23>'
+    'rdr2:launch-rdr2.sh'
+    'skyrim:launch-bethesda.sh'
+    'bethesda:launch-bethesda.sh'
+    're:launch-re-engine.sh'
+    're-engine:launch-re-engine.sh'
+    'capcom:launch-re-engine.sh'
+    'ubisoft:launch-anvilnext.sh'
+    'anvilnext:launch-anvilnext.sh'
+    'redengine:launch-redengine.sh'
+    'cdpr:launch-redengine.sh'
+    'forza:launch-forzatech.sh'
+    'forzatech:launch-forzatech.sh'
+    'pes:launch-pes.sh'
+    'efootball:launch-pes.sh'
+  )
+
+  _arguments -C \
+    '1:command:->cmd' \
+    '*:: :->args'
+
+  case $state in
+    cmd)
+      _describe 'cellar commands' commands
+      ;;
+    args)
+      case "$words[1]" in
+        install|launch|app)
+          local cellar_root="${${(%):-%x}:A:h:h}"
+          local profiles_file="$cellar_root/profiles.json"
+          if [[ -f "$profiles_file" ]] && (( $+commands[jq] )); then
+            local -a profiles
+            profiles=(${(f)"$(jq -r '.profiles[].id' "$profiles_file")"})
+            _describe 'profile' profiles
+          fi
+          ;;
+        inspect|backup|d3dmetal|uninstall)
+          if [[ -d "$HOME/.cellar/bottles" ]]; then
+            local -a bottles
+            bottles=(${(f)"$(find "$HOME/.cellar/bottles" -maxdepth 1 -mindepth 1 -type d -exec basename {} \;)"})
+            _describe 'bottle' bottles
+          fi
+          ;;
+        fifa)
+          _values 'FIFA version' 14 15 16 17 18 19 20 21 22 23
+          ;;
+        logs)
+          _values 'logs subcommand' list open prune
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_cellar "$@"

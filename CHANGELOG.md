@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### Added — bottle uninstaller + bash/zsh completion for cellar CLI
+
+Continued polish on the user loop.
+
+- **`scripts/uninstall-bottle.sh <bottle>`** — clean bottle removal.
+  Default action removes the prefix only. Flags:
+    `--apps`     also delete the matching `.app` under
+                 `/Applications/cellar Games/`
+    `--logs`     also clean `/tmp/cellar-<bottle>.log` + pidfile
+    `--backups`  also delete `~/.cellar/backups/<bottle>/` (kept by
+                 default so you can rebuild from saves later)
+    `--all`      all three plus the prefix
+    `--dry-run`  print what would be removed without touching anything
+  Wired into `bin/cellar` as `cellar uninstall <bottle> [flags]`.
+
+- **`scripts/setup-gptk.sh` exposed as `cellar setup`** — one-shot
+  GPTK installer now reachable through the CLI dispatcher.
+
+- **`completions/cellar.bash`** + **`completions/_cellar`** —
+  Bash and zsh tab completion for the cellar CLI. Completes:
+  subcommand on the first positional arg, profile id (read from
+  `profiles.json` via jq) on the second arg of `install` / `launch`
+  / `app`, bottle name on the second arg of `inspect` / `backup` /
+  `d3dmetal` / `uninstall`, FIFA version on `fifa <ver>`, log
+  subcommand on `logs`. Install instructions in each file header
+  (source from your shell rc).
+
+Now: `cellar <Tab>` shows the command list, `cellar install <Tab>`
+suggests profiles, `cellar inspect <Tab>` suggests bottles. Same
+muscle memory as `git`, `kubectl`, etc.
+
 ### Added — single CLI entrypoint + launchd installer for watch-games
 
 Two more layers that make the project feel like a real installed

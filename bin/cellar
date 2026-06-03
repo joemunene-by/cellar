@@ -6,11 +6,13 @@
 #
 # Commands:
 #   doctor              run cellar-doctor.sh (runtime health check)
+#   setup               run setup-gptk.sh (one-time GPTK install)
 #   find <game>         find matching profile for a game name
 #   install <profile> <game>      proactive bottle setup
 #   launch <profile> <game>       launch via the generic engine launcher
 #   app <profile> <game>          make a clickable .app bundle
 #   inspect <bottle>    bottle-inspect.sh
+#   uninstall <bottle>  remove a bottle (use --all to nuke .app + logs + backups)
 #   logs                cellar-logs.sh (list / tail launcher logs)
 #   analyze [log]       analyze-log.sh on the given (or most recent) log
 #   crash [bottle]      crash-report.sh (bundle for issue submission)
@@ -66,6 +68,8 @@ case "$cmd" in
   watch)     exec "$SCRIPTS/watch-games.sh" "$@" ;;
   d3dmetal)  exec "$SCRIPTS/d3dmetal-switch.sh" "$@" ;;
   validate)  exec "$SCRIPTS/validate-profiles.sh" "$@" ;;
+  uninstall) exec "$SCRIPTS/uninstall-bottle.sh" "$@" ;;
+  setup)     exec "$SCRIPTS/setup-gptk.sh" "$@" ;;
   profiles)
     jq -r '.profiles[] | "  " + .id + " — " + .name' "$CELLAR_ROOT/profiles.json"
     ;;
