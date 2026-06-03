@@ -1,0 +1,85 @@
+name: Bug report
+description: A cellar script, launcher, or runtime path is broken on your setup
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Before filing, please run
+        `scripts/cellar-doctor.sh` and `scripts/analyze-log.sh` (against the
+        failing launcher log) and paste their output below. Most launch
+        failures match a known pattern and the analyzer already suggests
+        the fix.
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: From "About This Mac" or `sw_vers -productVersion`
+      placeholder: e.g. 15.6
+    validations:
+      required: true
+
+  - type: input
+    id: cpu
+    attributes:
+      label: Mac model + chip
+      description: From "About This Mac"
+      placeholder: e.g. Mac mini M4 Pro
+    validations:
+      required: true
+
+  - type: input
+    id: crossover
+    attributes:
+      label: CrossOver version under ~/.cellar/runtime/
+      description: Run `ls ~/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/lib/wine/x86_64-unix/wine && ~/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/lib/wine/x86_64-unix/wine --version`
+      placeholder: e.g. wine-11.0 (CrossOver 26.1.0)
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: scripts/cellar-doctor.sh output
+      description: Full output of `./scripts/cellar-doctor.sh`.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command that failed
+      description: Exact command including profile id, game dir, env vars.
+      render: shell
+      placeholder: |
+        scripts/launch-engine.sh frostbite-multi "Need for Speed Heat"
+    validations:
+      required: true
+
+  - type: textarea
+    id: analyzer
+    attributes:
+      label: scripts/analyze-log.sh output
+      description: Run analyze-log.sh against the failed launch log (in /tmp/) and paste here.
+      render: shell
+
+  - type: textarea
+    id: log_tail
+    attributes:
+      label: Last ~50 lines of the launcher log
+      description: From the matching /tmp/*.log
+      render: text
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Game source (standalone vs repack), config changes, prior working state, etc.

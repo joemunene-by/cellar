@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  validate-profiles:
+    name: validate profiles.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install jq
+        run: sudo apt-get update -y && sudo apt-get install -y jq
+      - name: run profile validator
+        run: ./scripts/validate-profiles.sh
+
+  shell-syntax:
+    name: bash syntax check on launcher scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash -n every shell script under scripts/
+        run: |
+          failed=0
+          for s in scripts/*.sh; do
+            if bash -n "$s"; then
+              echo "OK  $s"
+            else
+              echo "FAIL $s"
+              failed=1
+            fi
+          done
+          exit $failed
+
+  shellcheck:
+    name: shellcheck (advisory, non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: install shellcheck
+        run: sudo apt-get update -y && sudo apt-get install -y shellcheck
+      - name: run shellcheck
+        run: |
+          shellcheck --severity=warning scripts/*.sh || true

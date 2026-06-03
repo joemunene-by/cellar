@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest an addition to cellar
+title: "[feature] "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user-loop friction does this solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Concrete description of the change. New script? New profile? Tauri UI change? Architecture change?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Out of scope / non-goals
+      description: What this feature explicitly does NOT do.

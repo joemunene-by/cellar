@@ -1,0 +1,73 @@
+name: New engine-family profile request
+description: A game / family of games isn't covered by an existing profile
+title: "[profile] add support for "
+labels: ["profile-request", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Profiles encode the wine + winetricks + DLL override recipe for an
+        engine family. If you've already run `scripts/find-profile.sh "<game>"`
+        and nothing matched, this is the right form.
+
+  - type: input
+    id: engine
+    attributes:
+      label: Engine
+      description: Engine name (Frostbite, UE4, RE Engine, REDengine, etc.)
+      placeholder: e.g. Source 2, IW9, Snowdrop
+    validations:
+      required: true
+
+  - type: textarea
+    id: titles
+    attributes:
+      label: Games in this family
+      description: List at least three titles that would use the same recipe.
+      placeholder: |
+        - Title A
+        - Title B
+        - Title C
+    validations:
+      required: true
+
+  - type: input
+    id: graphics_api
+    attributes:
+      label: Graphics API
+      placeholder: e.g. D3D11 native, D3D12 default with DX11 fallback, Vulkan
+    validations:
+      required: true
+
+  - type: input
+    id: anti_cheat
+    attributes:
+      label: Anti-cheat
+      description: Is there a kernel-mode AC? (BattlEye, EAC, Vanguard, Hyperion, EAAC) If yes, single-player only?
+      placeholder: e.g. None / BattlEye (online only) / EAAC kernel-mode
+
+  - type: textarea
+    id: known_works
+    attributes:
+      label: Known-working setups elsewhere
+      description: ProtonDB rating, Lutris script, AppleGamingWiki entry, CodeWeavers compat entry. Cite URLs.
+
+  - type: textarea
+    id: dll_overrides
+    attributes:
+      label: Suggested WINEDLLOVERRIDES
+      description: Per the wine grammar (n / b / empty). Validator rejects =disabled or =d.
+      placeholder: winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=
+
+  - type: textarea
+    id: winetricks
+    attributes:
+      label: Suggested winetricks verbs
+      description: From `winetricks --help` list.
+      placeholder: vcrun2019 corefonts d3dcompiler_47
+
+  - type: textarea
+    id: launch_args
+    attributes:
+      label: Special launch args, registry tweaks, or config-file patches needed
+      description: e.g. -dx11 flag, fifasetup.ini DIRECTX_SELECT=0, -sgadriver=Vulkan
