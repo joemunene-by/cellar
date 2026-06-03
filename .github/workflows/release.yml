@@ -1,0 +1,113 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.1.1)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac:
+    name: build cellar.app on macOS
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: install node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: npm install
+        run: npm ci || npm install
+
+      - name: install tauri cli
+        run: cargo install tauri-cli --version "^2.0" --locked
+
+      - name: build tauri app (universal binary)
+        run: |
+          cargo tauri build --target universal-apple-darwin || \
+          cargo tauri build
+        env:
+          # No code-signing for the alpha. Users will see Gatekeeper warning
+          # on first launch; documented in README known-issues.
+          APPLE_SIGNING_IDENTITY: ""
+          APPLE_CERTIFICATE: ""
+
+      - name: locate built artifacts
+        id: locate
+        run: |
+          # Tauri 2 build output paths.
+          dmg=$(find src-tauri/target -type f -name '*.dmg' | head -1)
+          app=$(find src-tauri/target -type d -name 'cellar.app' | head -1)
+          echo "dmg=$dmg" >> "$GITHUB_OUTPUT"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          ls -la "$dmg" 2>/dev/null || true
+          ls -la "$app" 2>/dev/null || true
+
+      - name: tarball the .app
+        if: steps.locate.outputs.app != ''
+        run: |
+          cd "$(dirname '${{ steps.locate.outputs.app }}')"
+          tar -czf "/tmp/cellar.app.tar.gz" "$(basename '${{ steps.locate.outputs.app }}')"
+          ls -la /tmp/cellar.app.tar.gz
+
+      - name: upload artifacts to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: |
+            ${{ steps.locate.outputs.dmg }}
+            /tmp/cellar.app.tar.gz
+          fail_on_unmatched_files: false
+          body: |
+            cellar release artifacts.
+
+            **Unsigned alpha build.** Gatekeeper will block the first
+            launch with "cellar can't be opened because Apple cannot
+            check it for malicious software". Right-click the app and
+            select Open to bypass.
+
+            ### Install (.dmg)
+
+            1. Download `cellar_*.dmg`
+            2. Open the dmg, drag cellar to Applications
+            3. Right-click cellar in Applications -> Open (one-time)
+
+            ### Install (.app.tar.gz)
+
+            ```sh
+            tar -xzf cellar.app.tar.gz -C /Applications
+            xattr -dr com.apple.quarantine /Applications/cellar.app
+            ```
+
+            ### Runtime prerequisites
+
+            cellar needs CrossOver 26 wine 11.0 + Apple GPTK D3DMetal
+            3.0 staged at `~/.cellar/runtime/`. Run
+            `./scripts/setup-gptk.sh` after cloning the repo (the
+            packaged `.app` does NOT bundle wine).

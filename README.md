@@ -54,6 +54,29 @@ Covered out of the box: **60+ games across 10 engines** via runtime
 profiles in [`profiles.json`](profiles.json). See the [scripts
 reference](#scripts-reference) for the full tooling.
 
+## demo
+
+> **Coming next**: short capture of the install → launch → gameplay loop
+> on FIFA 19 (first non-CarX engine-family profile slated for
+> verification). Placeholder reserved at `assets/demo.gif`.
+
+<details>
+<summary>What works today (without the GIF)</summary>
+
+- **CarX Street** — Unity 2022 IL2CPP + Burst + Havok, verified end-
+  to-end on M4 / macOS 15.6 / CrossOver wine 11.0 + D3DMetal 3.0. The
+  bottle, launcher, and `.app` wrapper at
+  `/Applications/cellar Games/CarX Street.app` all work as designed.
+- **NFS Most Wanted 2005** — D3D9, verified via Goldberg Steam stub on
+  the same stack.
+
+Everything else in [`profiles.json`](profiles.json) is engine-
+fingerprint-correct but unverified on Apple Silicon. See the FIFA
+disclaimer in [CHANGELOG](CHANGELOG.md) for why that distinction
+matters, and [ROADMAP](ROADMAP.md) for the test queue.
+
+</details>
+
 ## what
 
 A native Mac launcher that wraps the rough edges of running Windows

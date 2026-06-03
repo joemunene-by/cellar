@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### Added — release pipeline + demo placeholder + Tauri frontend survey
+
+Three quick post-public additions.
+
+- **`.github/workflows/release.yml`** — auto-build the Tauri `cellar.app`
+  on macOS-14 runners when a `v*.*.*` tag is pushed, and attach the
+  `.dmg` + tarballed `.app` to the matching GitHub release. Builds the
+  universal-apple-darwin target with arm64 + x86_64 support, caches the
+  cargo registry between runs, no code-signing (alpha; Gatekeeper
+  workaround documented in release notes).
+
+- **README demo section** — placeholder before the "what" section with a
+  collapsible "What works today" expander listing the verified titles
+  (CarX Street, NFS:MW 2005). When the first non-CarX game boots, the
+  GIF lands at `assets/demo.gif` and the placeholder lifts.
+
+- **Tauri frontend survey** — `src/components/Library.tsx` already
+  imports `profiles` and calls `matchProfile(profileList, g.name)`
+  per card, displays a `profile-badge`, runs `prereq.checkAll` for
+  per-game readiness, and launches via `runtime.launch(game.id)`.
+  `src/lib/invoke.ts` exposes the full `profiles_list` /
+  `profiles_find` Tauri command pair from `src-tauri/src/profiles.rs`.
+  So the frontend wire-up isn't missing; it's already in place at the
+  data layer. What's NOT wired yet:
+  - Surfacing the new shell tools (`analyze-log`, `bottle-inspect`,
+    `cellar-doctor`, `crash-report`) as in-app debug-panel buttons.
+  - Routing `runtime_launch` through the dedicated engine launchers
+    (`launch-fifa.sh`, `launch-rdr2.sh`, `launch-bethesda.sh`,
+    `launch-re-engine.sh`, etc.) instead of the direct wine invocation
+    in `src-tauri/src/runtime.rs`.
+
+  Both are follow-up work for a dedicated Tauri-focused session; they
+  need Rust changes plus UI changes and don't fit a quick batch.
+
 ### Added — crash report, Games-source watcher, D3DMetal switcher, 4 more dedicated launchers
 
 Post-v0.1.0 push. Three operational tools plus four engine-specific
