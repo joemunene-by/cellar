@@ -2,6 +2,88 @@
 
 ## Unreleased
 
+### Added — ten engine-family profiles + generic profile-driven launcher
+
+Big batch of runtime profiles covering the AAA single-player game
+families that fit cellar's constraints (no kernel-mode anti-cheat,
+no cls-codec repacks, must work via standalone / pre-cracked builds).
+Plus a generic launcher that reads profiles directly, so adding a
+new game often means just appending to `profiles.json`.
+
+New profiles in `profiles.json`:
+
+- **`frostbite-multi`** — Frostbite engine titles other than FIFA:
+  NFS Heat / Unbound / Payback / Rivals, Battlefield 1 / 4 / V, Star
+  Wars Battlefront, Mass Effect Andromeda, Dragon Age Inquisition,
+  Anthem, Plants vs Zombies GW, Mirror's Edge Catalyst.
+- **`rage-rockstar`** — Rockstar RAGE engine: GTA V, GTA IV, RDR2,
+  Max Payne 3. Single-player only (Take-Two BattlEye blocks online).
+  Disables `socialclub` DLL to neutralize Rockstar Games Launcher.
+- **`d3d9-classic`** — D3D9-era classics: GTA San Andreas / Vice
+  City / III. 32-bit, routed through D3DMetal's d3d9 forwarder. ASI
+  loader and SilentPatch mods work under wine.
+- **`unreal-engine-4-5`** — Elden Ring, Sekiro, Dark Souls III,
+  Hogwarts Legacy, Hellblade, Borderlands 3, Satisfactory. Default
+  launch args include `-dx11` which forces D3D11 over UE's DX12
+  default and dodges D3DMetal's bindless / min16float crashes.
+- **`re-engine`** — Capcom RE Engine: RE2/3/4 Remake, Village, RE7,
+  DMC5, Monster Hunter Rise / World, Street Fighter 6 (offline).
+- **`anvilnext-ubisoft`** — Ubisoft AnvilNext / Disrupt / Dunia:
+  Assassin's Creed Origins / Odyssey / Valhalla / Black Flag, Far
+  Cry 5 / 6, Watch Dogs 2 / Legion, The Division 2 (offline).
+  Disables `uplay_r1_loader` to neutralize Ubisoft Connect.
+- **`redengine`** — CDPR: Cyberpunk 2077 (DX12-only, experimental),
+  The Witcher 3 (use the native macOS port from CDPR if available).
+- **`bethesda-creation`** — Skyrim / Skyrim SE / Skyrim AE, Fallout
+  4 / NV / 3 / 76, Oblivion. d3d9 in DLL overrides covers the
+  older titles (FNV, FO3, Oblivion).
+- **`forzatech`** — Forza Horizon 4 / 5. DX12-only and uses
+  `Windows.Gaming.Input` WinRT classes, so requires the same Proton
+  WinRT DLL staging step CarX needs.
+- **`pes-foxengine`** — PES 2019-2021 (Fox Engine) and eFootball
+  2024+ (UE4-based). DX11 native, no anti-cheat for offline.
+
+New launcher: **`scripts/launch-engine.sh <profile-id> <game-dir>`**.
+Reads the matching profile out of `profiles.json` via jq, builds the
+env block from `profile.settings.env`, sets `WINEDLLOVERRIDES` from
+`profile.settings.dll_overrides`, installs winetricks verbs found in
+`profile.requires` (each tried independently so a broken verb like
+`dotnet48` doesn't abort the rest), and resolves the game exe case-
+insensitively from `~/Games-source/<game-dir>/`. Bottle path is
+`~/.cellar/bottles/<profile-id>-<game-slug>/prefix`, one per game,
+so titles in the same engine family don't share state. Non-
+winetricks requires (e.g. `proton_winrt_dlls`, `homebrew_gstreamer`)
+get printed as hints rather than blocking the run.
+
+Two stale claims also corrected in the `fifa-14-23` profile entry:
+the description used to reference `fifasetup/installerdata.xml`
+(corrected to `fifasetup.ini` with `DIRECTX_SELECT`) and the
+`dll_overrides` string still had `nvapi,nvapi64=disabled` (corrected
+to the empty-value `nvapi,nvapi64=` matching the launcher fix from
+the previous commit).
+
+#### What this expansion actually means
+
+Profile entries are claims about the runtime that the launcher
+needs, not claims that the game boots. They encode the engine
+fingerprint (DX path, winetricks set, DLL probing pattern) so that
+when a game in one of those families gets dropped into
+`~/Games-source/`, the launcher applies the right recipe without
+custom code per title. Whether each game actually reaches the main
+menu is still up to D3DMetal 3.0 + wine 11 + the game's own DRM
+posture, and (per the FIFA disclaimer in the previous section) most
+of these have no public Apple Silicon success report yet.
+
+Realistic ordering when storage permits:
+1. `d3d9-classic` (GTA SA/VC/III, smallest install, lowest risk)
+2. `nfs-most-wanted-2005` (already verified) plus other `d3d9-classic`
+3. `re-engine` Monster Hunter World (oldest, simplest of the family)
+4. `bethesda-creation` Skyrim SE (well-trodden under wine generally)
+5. FIFA 19 (existing dedicated launcher)
+6. UE4 single-player AAAs (Elden Ring with `-dx11` flag is the
+   highest-popularity target with a documented workaround)
+7. Everything else as time and curiosity allow.
+
 ### Added — FIFA 14-23 launcher template (Impact / Ignite / Frostbite via D3DMetal)
 
 Same hybrid runtime as CarX (CrossOver 26 wine 11.0 + Apple GPTK

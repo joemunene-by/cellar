@@ -389,6 +389,102 @@ cheat profile; expect to debug. FIFA 19 (D3D11 native, no anti-
 cheat, has a CodeWeavers compatibility entry) is the lowest-risk
 starting point.
 
+### Engine-family profiles + generic launcher
+
+Beyond CarX, NFS:MW, and FIFA (which have dedicated launchers in
+`scripts/`), `profiles.json` carries ten engine-family runtime
+profiles that the generic launcher `scripts/launch-engine.sh
+<profile-id> <game-dir>` consumes directly. Adding a new game in
+one of these families usually means just placing it under
+`~/Games-source/<name>/` and running the matching profile, no new
+script needed.
+
+Engine families covered:
+
+| Profile id | Engine | Example games |
+|---|---|---|
+| `frostbite-multi` | Frostbite | NFS Heat / Unbound / Payback, Battlefield 1 / 4 / V, Star Wars Battlefront, Mass Effect Andromeda, Dragon Age Inquisition, Anthem, Mirror's Edge Catalyst |
+| `rage-rockstar` | Rockstar RAGE | GTA V, GTA IV, RDR2, Max Payne 3 |
+| `d3d9-classic` | older D3D9 | GTA San Andreas / Vice City / III |
+| `unreal-engine-4-5` | UE4 / UE5 | Elden Ring, Sekiro, Dark Souls III, Hogwarts Legacy, Hellblade |
+| `re-engine` | Capcom RE Engine | RE2/3/4 Remake, Village, RE7, DMC5, Monster Hunter Rise / World |
+| `anvilnext-ubisoft` | Ubisoft engines | Assassin's Creed Origins / Odyssey / Valhalla / Black Flag, Far Cry 5 / 6, Watch Dogs |
+| `redengine` | CDPR | Cyberpunk 2077, Witcher 3 (prefer native Mac port) |
+| `bethesda-creation` | Bethesda Creation | Skyrim / SE / AE, Fallout 4 / NV / 3 / 76 |
+| `forzatech` | ForzaTech | Forza Horizon 4 / 5 (needs Proton WinRT DLLs, same as CarX) |
+| `pes-foxengine` | Konami Fox + UE4 | PES 2019-2021, eFootball 2024+ |
+
+Each profile encodes the DLL override pattern (which DXs route
+through D3DMetal, which DRM DLLs to neutralize like `socialclub` or
+`uplay_r1_loader`), the winetricks set, default launch args (UE
+profiles auto-add `-dx11`), and the `requires` list (winetricks
+verbs the launcher will install on first boot, plus hints like
+`proton_winrt_dlls` for engines that need WinRT runtime classes).
+
+Generic launcher usage:
+
+```sh
+# minimum
+scripts/launch-engine.sh <profile-id> "<game-dir-name>"
+
+# concrete
+scripts/launch-engine.sh frostbite-multi "Need for Speed Heat"
+scripts/launch-engine.sh rage-rockstar "Grand Theft Auto V"
+scripts/launch-engine.sh d3d9-classic "Grand Theft Auto San Andreas"
+scripts/launch-engine.sh unreal-engine-4-5 "Elden Ring"
+scripts/launch-engine.sh re-engine "Monster Hunter World"
+scripts/launch-engine.sh bethesda-creation "Skyrim Special Edition"
+```
+
+The bottle lands at `~/.cellar/bottles/<profile-id>-<game-slug>/prefix`
+(one bottle per game, so titles in the same engine family don't
+share Wine state). Logs at `/tmp/cellar-<bottle>.log`. Same `make-
+game-app.sh` wrapper can turn any of these into a clickable
+`/Applications/cellar Games/<name>.app`.
+
+#### Engine-family caveats worth knowing
+
+- **Frostbite (non-FIFA)** — each game has its own DX-version
+  toggle location: NFS Heat / Unbound write `Documents/Need for
+  Speed Heat/settings.ini`; Battlefield uses `user.cfg` with
+  `RenderDevice.Dx12Enabled 0`. The profile doesn't patch these
+  automatically; force DX11 in the game's own settings the first
+  time it boots, and it'll persist.
+- **Rockstar RAGE** — RDR2 supports `-vulkan` on the command line,
+  which routes through MoltenVK instead of D3DMetal's DX12 path
+  and has been the more stable option on Linux Proton historically.
+  Pass `-vulkan` manually for RDR2 by editing the launcher.
+- **D3D9 classics** — Resolution often defaults to 640x480
+  windowed; set Wine's virtual desktop or the game's own preset.
+  Widescreen Fix / SilentPatch / ASI loader mods all work as
+  drop-in `.asi` / `.dll` files in the game directory.
+- **UE4 / UE5** — `-dx11` is in `launch_args` by default. Hogwarts
+  Legacy uses Nanite + Lumen which adds shader compile stutter
+  that's unrelated to wine.
+- **ForzaTech** — Needs `proton_winrt_dlls` like CarX. Run
+  `scripts/install-proton-winrt.sh "$PREFIX"` against the bottle
+  after the first wineboot.
+- **REDengine** — Witcher 3 has a native macOS port (CDPR shipped
+  it for Apple Silicon). Prefer that over wine for Witcher 3
+  specifically. Cyberpunk 2077 is genuinely experimental on Mac;
+  no documented Apple Silicon success.
+
+#### What gets blocked
+
+Hard blocks that no profile can route around:
+
+- Kernel-mode anti-cheat: Vanguard (Valorant), Hyperion (CoD MW2+
+  2022+), late-game Fortnite combo. No wine support, period.
+- Rockstar online (GTA Online, RDR Online) — Take-Two has banned
+  wine sessions. Single-player only.
+- FitGirl / DODI repacks using the `cls-*.dll` codec chain
+  (lollypop, lolzi, lolzx) — documented further down in
+  "CLS plugin shim IPC blocked".
+
+For these, the answer is either xCloud / GeForce Now (Valorant,
+Fortnite) or a native Mac port if EA / Ubisoft / Capcom ever ships
+one, not cellar.
+
 ### winemac.drv HWND lifecycle deadlock (FitGirl installs)
 
 FitGirl repacks use Inno Setup 5.5 + ISDone.dll + unarc.dll +
