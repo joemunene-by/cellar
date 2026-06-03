@@ -1,0 +1,93 @@
+#!/bin/bash
+# cellar — single CLI entrypoint that dispatches to scripts/*.sh.
+#
+# Usage:
+#   cellar <command> [args ...]
+#
+# Commands:
+#   doctor              run cellar-doctor.sh (runtime health check)
+#   find <game>         find matching profile for a game name
+#   install <profile> <game>      proactive bottle setup
+#   launch <profile> <game>       launch via the generic engine launcher
+#   app <profile> <game>          make a clickable .app bundle
+#   inspect <bottle>    bottle-inspect.sh
+#   logs                cellar-logs.sh (list / tail launcher logs)
+#   analyze [log]       analyze-log.sh on the given (or most recent) log
+#   crash [bottle]      crash-report.sh (bundle for issue submission)
+#   backup <bottle>     backup-saves.sh (tarball saves)
+#   watch               watch-games.sh (foreground daemon)
+#   d3dmetal <args>     d3dmetal-switch.sh
+#   validate            validate-profiles.sh
+#   profiles            list all profile ids
+#   fifa <ver> [...]    launch-fifa.sh
+#   rdr2 [dir]          launch-rdr2.sh
+#   skyrim <dir>        launch-bethesda.sh
+#   re <dir>            launch-re-engine.sh
+#   ubisoft <dir>       launch-anvilnext.sh
+#   redengine <dir>     launch-redengine.sh
+#   forza <dir>         launch-forzatech.sh
+#   pes <dir>           launch-pes.sh
+#   version             print the cellar git rev + last commit
+#   help                this message
+#
+# Examples:
+#   cellar doctor
+#   cellar find "Need for Speed Heat"
+#   cellar install frostbite-multi "Need for Speed Heat"
+#   cellar launch frostbite-multi "Need for Speed Heat"
+#   cellar app fifa-14-23 "FIFA 19"
+#   cellar inspect carxstreet-hybrid
+set -u
+
+CELLAR_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPTS="$CELLAR_ROOT/scripts"
+
+usage() {
+  # First-page help: just the command list, no examples (which live in
+  # the script header above for readers who want them).
+  sed -n '/^# Commands:/,/^# Examples:/p' "$0" | sed 's|^# ||; s|^#$||' | head -n -1
+  exit "${1:-0}"
+}
+
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+  doctor)    exec "$SCRIPTS/cellar-doctor.sh" "$@" ;;
+  find)      exec "$SCRIPTS/find-profile.sh" "$@" ;;
+  install)   exec "$SCRIPTS/cellar-install.sh" "$@" ;;
+  launch)    exec "$SCRIPTS/launch-engine.sh" "$@" ;;
+  app)       exec "$SCRIPTS/make-cellar-app.sh" "$@" ;;
+  inspect)   exec "$SCRIPTS/bottle-inspect.sh" "$@" ;;
+  logs)      exec "$SCRIPTS/cellar-logs.sh" "$@" ;;
+  analyze)   exec "$SCRIPTS/analyze-log.sh" "$@" ;;
+  crash)     exec "$SCRIPTS/crash-report.sh" "$@" ;;
+  backup)    exec "$SCRIPTS/backup-saves.sh" "$@" ;;
+  watch)     exec "$SCRIPTS/watch-games.sh" "$@" ;;
+  d3dmetal)  exec "$SCRIPTS/d3dmetal-switch.sh" "$@" ;;
+  validate)  exec "$SCRIPTS/validate-profiles.sh" "$@" ;;
+  profiles)
+    jq -r '.profiles[] | "  " + .id + " — " + .name' "$CELLAR_ROOT/profiles.json"
+    ;;
+  fifa)      exec "$SCRIPTS/launch-fifa.sh" "$@" ;;
+  rdr2)      exec "$SCRIPTS/launch-rdr2.sh" "$@" ;;
+  skyrim|bethesda)  exec "$SCRIPTS/launch-bethesda.sh" "$@" ;;
+  re|re-engine|capcom) exec "$SCRIPTS/launch-re-engine.sh" "$@" ;;
+  ubisoft|anvilnext)   exec "$SCRIPTS/launch-anvilnext.sh" "$@" ;;
+  redengine|cdpr)      exec "$SCRIPTS/launch-redengine.sh" "$@" ;;
+  forza|forzatech)     exec "$SCRIPTS/launch-forzatech.sh" "$@" ;;
+  pes|efootball)       exec "$SCRIPTS/launch-pes.sh" "$@" ;;
+  version|--version|-v)
+    cd "$CELLAR_ROOT"
+    rev=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "untagged")
+    when=$(git log -1 --format='%cd' --date=short 2>/dev/null || echo "")
+    echo "cellar $tag ($rev, $when)"
+    ;;
+  help|-h|--help|"") usage 0 ;;
+  *)
+    echo "unknown command: $cmd" >&2
+    echo >&2
+    usage 1
+    ;;
+esac

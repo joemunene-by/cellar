@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### Added — single CLI entrypoint + launchd installer for watch-games
+
+Two more layers that make the project feel like a real installed
+tool instead of a bag of scripts.
+
+- **`bin/cellar`** — single CLI dispatch. `cellar doctor`,
+  `cellar find "<game>"`, `cellar install <profile> "<game>"`,
+  `cellar launch <profile> "<game>"`, `cellar app <profile> "<game>"`,
+  `cellar inspect <bottle>`, `cellar logs`, `cellar analyze`,
+  `cellar crash`, `cellar backup <bottle>`, `cellar watch`,
+  `cellar d3dmetal <args>`, `cellar validate`, `cellar profiles`,
+  plus shorthand `cellar fifa <ver>`, `cellar rdr2`, `cellar skyrim`,
+  `cellar re`, `cellar ubisoft`, `cellar redengine`, `cellar forza`,
+  `cellar pes`. `cellar version` prints the git rev + last commit
+  date. `cellar help` shows the command list. Put `bin/` on PATH
+  (`export PATH="$PWD/bin:$PATH"`) and the entire scripts/ surface
+  is reachable by one short command.
+
+- **`scripts/install-launchd-watch.sh`** — registers
+  `scripts/watch-games.sh` as a macOS launchd agent under
+  `~/Library/LaunchAgents/dev.cellar.watch-games.plist`. Once
+  installed, launchd starts the watcher at login + restarts it on
+  crash, so new game dirs under `~/Games-source/` get a profile-
+  match notification automatically without needing a terminal open.
+  Stdout / stderr land at `/tmp/cellar-watch-out.log` /
+  `/tmp/cellar-watch-err.log`. `install`, `uninstall`, `status`
+  subcommands.
+
+README quick-start now uses the `cellar` form (`cellar doctor`,
+`cellar find`, `cellar install`, etc.) with a note pointing at
+`bin/` for the PATH export.
+
 ### Added — release pipeline + demo placeholder + Tauri frontend survey
 
 Three quick post-public additions.

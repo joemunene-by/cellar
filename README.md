@@ -33,21 +33,27 @@ git clone https://github.com/joemunene-by/cellar.git
 cd cellar
 ./scripts/setup-gptk.sh
 
+# (optional, but recommended) put cellar on PATH
+export PATH="$PWD/bin:$PATH"
+
 # health check
-./scripts/cellar-doctor.sh
+cellar doctor
 
 # match a game to an engine-family profile
-./scripts/find-profile.sh "Need for Speed Heat"
+cellar find "Need for Speed Heat"
 #   Best match: frostbite-multi
 
 # proactive bottle setup (so first launch goes straight to the game)
-./scripts/cellar-install.sh frostbite-multi "Need for Speed Heat"
+cellar install frostbite-multi "Need for Speed Heat"
 
 # make it a clickable app
-./scripts/make-cellar-app.sh frostbite-multi "Need for Speed Heat"
+cellar app frostbite-multi "Need for Speed Heat"
 
 # if a launch fails, scan the log for known failure patterns
-./scripts/analyze-log.sh
+cellar analyze
+
+# bundle a crash report for an issue
+cellar crash
 ```
 
 Covered out of the box: **60+ games across 10 engines** via runtime
@@ -123,8 +129,11 @@ Metal + the M4 GPU
 ## scripts reference
 
 Every tool lives under [`scripts/`](scripts/) and is a standalone bash
-script. The full loop has no required UI; the Tauri shell on top is
-optional polish.
+script. [`bin/cellar`](bin/cellar) is a single CLI entrypoint that
+dispatches to the matching script (`cellar doctor`, `cellar install`,
+`cellar launch`, etc.) — put `bin/` on `$PATH` for the friendly form.
+The full loop has no required UI; the Tauri shell on top is optional
+polish.
 
 ### user-facing
 
