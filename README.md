@@ -324,6 +324,55 @@ to run `setup-gptk.sh` automatically. Treat plain wine-staging as
 a developer-only smoke configuration for the install pipeline,
 not as a supported launch runtime.
 
+### FIFA 14-23 (Impact / Ignite / Frostbite)
+
+`scripts/launch-fifa.sh <version>` reuses the CarX hybrid runtime
+(CrossOver wine 11.0 + Apple GPTK D3DMetal 3.0) for ten FIFA titles
+spanning three engines. It creates a per-version bottle at
+`~/.cellar/bottles/fifa<ver>/prefix`, runs
+`winetricks dotnet48 vcrun2019 corefonts d3dcompiler_47` on first
+boot, sets `WINEDLLOVERRIDES` to route `d3d11,d3d12,dxgi,d3d10core=n,b`
+(D3DMetal handles them), registers `d3d9` as `native,builtin` (for
+FIFA 14's Impact engine), and disables `nvapi,nvapi64` (FIFA probes
+NVIDIA-only paths that never resolve on Apple Silicon). For
+v20/21/22 the script also patches `Documents/FIFA <year>/fifasetup/
+installerdata.xml` to add `DXVersion=DX11`, forcing the DX11 fallback
+that those games still ship. `scripts/make-fifa-apps.sh <14..23>`
+produces a clickable `/Applications/cellar Games/FIFA <N>.app`
+bundle per installed version, same wrapper pattern as CarX.
+
+Per-version status:
+
+| Version | Engine | API | Anti-cheat | Notes |
+|---|---|---|---|---|
+| FIFA 14 | Impact | D3D9 | none | D3DMetal d3d9 path, same as NFS:MW |
+| FIFA 15 | Ignite | D3D11 | none | should "just work" |
+| FIFA 16 | Ignite | D3D11 | none | should "just work" |
+| FIFA 17 | Frostbite | D3D11 | none | first Frostbite FIFA |
+| FIFA 18 | Frostbite | D3D11 | none | probable |
+| FIFA 19 | Frostbite | D3D11 native | none | best modern starting point, CrossOver compat entry exists |
+| FIFA 20 | Frostbite | DX12 default, DX11 fallback | none | force DX11, skip Origin |
+| FIFA 21 | Frostbite | DX12 default, DX11 fallback | none | force DX11, skip Origin, ProtonDB mixed |
+| FIFA 22 | Frostbite | DX12 default, DX11 fallback | none | force DX11, ProtonDB Gold baseline |
+| FIFA 23 | Frostbite | D3D12 only | EAAC kernel-mode (retail) | experimental, see below |
+
+FIFA 23 retail ships EA AntiCheat which has no wine support
+(kernel-mode by design). Community SteamRIP / Online-Fix builds
+strip EAAC for offline / career play, which is the only path on
+cellar. With EAAC out of the picture the next risk is Frostbite's
+DX12 path on D3DMetal, same class of bindless + min16float shaders
+that produced the CarX vertex glitch under D3DMetal 2.0 and was
+fixed by D3DMetal 3.0. v23 is worth a try; ordered last in the
+test queue until a working boot is logged.
+
+Source-selection rule applies across the whole family: every FIFA
+must be standalone (no EA App / Origin / EA Desktop) **and** must
+not be a FitGirl or DODI repack. The `cls-*.dll` shared-memory
+IPC deadlock documented below blocks the lollypop / lolzi / lolzx
+codec chain on wine 11 + macOS 15. SteamRIP and Online-Fix pre-
+installed builds skip both the EA launcher and the proprietary
+codec chain, so they are the only viable sources here.
+
 ### winemac.drv HWND lifecycle deadlock (FitGirl installs)
 
 FitGirl repacks use Inno Setup 5.5 + ISDone.dll + unarc.dll +

@@ -50,6 +50,33 @@
       "requires": []
     },
     {
+      "id": "fifa-14-23",
+      "name": "FIFA 14-23 (Impact / Ignite / Frostbite)",
+      "match_name_contains": ["fifa 14", "fifa 15", "fifa 16", "fifa 17", "fifa 18", "fifa 19", "fifa 20", "fifa 21", "fifa 22", "fifa 23", "fifa14", "fifa15", "fifa16", "fifa17", "fifa18", "fifa19", "fifa20", "fifa21", "fifa22", "fifa23"],
+      "description": "Ten FIFA titles spanning three engines, one runtime profile. FIFA 14 is Impact + D3D9 (routed through D3DMetal's D3D9 path same as NFS:MW). FIFA 15-16 are Ignite + D3D11. FIFA 17-19 are Frostbite D3D11 native. FIFA 20-22 are Frostbite DX12 default with a DX11 fallback that scripts/launch-fifa.sh forces via fifasetup/installerdata.xml. FIFA 23 is Frostbite DX12-only and relies on community offline-EAAC-bypass cracks (SteamRIP / Online-Fix). DXVK off so D3DMetal handles D3D9/11/12 directly. nvapi/nvapi64 disabled to stop FIFA from probing for NVIDIA-only paths. Source must be standalone (no EA App / Origin); FitGirl / DODI repacks blocked by the cls-*.dll codec deadlock on wine-on-Mac.",
+      "settings": {
+        "dxvk": false,
+        "esync": false,
+        "msync": true,
+        "metal_fences": false,
+        "metal_hud": false,
+        "dll_overrides": "winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=disabled",
+        "env": {
+          "ROSETTA_ADVERTISE_AVX": "1",
+          "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
+          "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS": "2",
+          "MVK_CONFIG_FAST_MATH_ENABLED": "1"
+        },
+        "launch_args": []
+      },
+      "requires": [
+        "winetricks_dotnet48",
+        "winetricks_vcrun2019",
+        "winetricks_corefonts",
+        "winetricks_d3dcompiler_47"
+      ]
+    },
+    {
       "id": "unity-il2cpp-2022",
       "name": "Generic Unity 2022 IL2CPP",
       "match_name_contains": [],

@@ -1,0 +1,150 @@
+#!/bin/bash
+# FIFA 14-23 launcher via cellar's hybrid runtime
+# (CrossOver 26 wine 11.0 binary + Apple GPTK D3DMetal 3.0 forwarders
+# loaded from CrossOver's lib64/apple_gptk/external).
+#
+# Engine / API by version:
+#   FIFA 14:        Impact engine,   D3D9
+#   FIFA 15, 16:    Ignite engine,   D3D11
+#   FIFA 17, 18:    Frostbite,       D3D11
+#   FIFA 19:        Frostbite,       D3D11 native
+#   FIFA 20-22:     Frostbite,       D3D12 default, DX11 fallback (we force DX11)
+#   FIFA 23:        Frostbite,       D3D12 only, EAAC kernel-mode (retail)
+#
+# FIFA 23 caveats:
+#   - The retail build ships EA AntiCheat (kernel-mode, no wine support).
+#     This launcher relies on the community offline-EAAC-bypass cracks
+#     (SteamRIP / Online-Fix builds that strip EAAC entirely). For online
+#     play EAAC is still a hard wall.
+#   - FIFA 23 is D3D12-only (no DX11 fallback in fifa_setup). Frostbite's
+#     DX12 path uses bindless + min16float shaders, same class of shader
+#     that broke CarX before D3DMetal 3.0. D3DMetal 3.0 fixed CarX, so v23
+#     is worth a real try, but treat it as experimental until we have a
+#     working boot logged.
+set -u
+
+VER="${1:?FIFA version required (14 through 23)}"
+case "$VER" in
+  14|15|16|17|18|19|20|21|22|23) ;;
+  *) echo "unsupported version: $VER (allowed: 14-23)" >&2; exit 1 ;;
+esac
+
+WINE="$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/lib/wine/x86_64-unix/wine"
+WINESERVER="$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/CrossOver-Hosted Application/wineserver"
+WINETRICKS="$(command -v winetricks || echo /opt/homebrew/bin/winetricks)"
+PREFIX="$HOME/.cellar/bottles/fifa$VER/prefix"
+GAME_DIR="$HOME/Games-source/FIFA $VER"
+GAME_EXE="FIFA$VER.exe"
+LOG="/tmp/fifa$VER.log"
+PIDFILE="/tmp/fifa$VER.pid"
+RES_W=1920
+RES_H=1080
+
+pkill -9 -f "wine64-preloader" 2>/dev/null
+pkill -9 -f "$GAME_EXE" 2>/dev/null
+pkill -9 -f "EAAntiCheat" 2>/dev/null
+pkill -9 -f "EALaunchHelper" 2>/dev/null
+pkill -9 -f "OriginWebHelperService" 2>/dev/null
+pkill -9 wineserver 2>/dev/null
+sleep 2
+
+mkdir -p "$(dirname "$PREFIX")"
+
+echo "===== launch $(date) FIFA $VER =====" > "$LOG"
+echo "wine: $WINE ($("$WINE" --version 2>&1))" >> "$LOG"
+echo "game dir: $GAME_DIR" >> "$LOG"
+echo "exe: $GAME_EXE" >> "$LOG"
+
+# Base env shared with CarX hybrid (CrossOver wine + apple_gptk D3DMetal 3.0).
+# No DXVK: FIFA 19/20 are D3D11-native; FIFA 21/22 default DX12 but we force
+# DX11 via the game's fifa_setup.exe in each per-version section below, so
+# D3DMetal's D3D11 -> Metal path handles it directly without DXVK.
+env_base=(
+  "WINEPREFIX=$PREFIX"
+  "DYLD_FRAMEWORK_PATH=$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/lib64/apple_gptk/external"
+  "CX_ROOT=$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver"
+  "DYLD_LIBRARY_PATH=/opt/homebrew/lib"
+  "ROSETTA_ADVERTISE_AVX=1"
+  "WINEESYNC=0"
+  "WINEDLLOVERRIDES=winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=disabled"
+  "MVK_CONFIG_USE_METAL_PRIVATE_API=1"
+  "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=2"
+  "MVK_CONFIG_FAST_MATH_ENABLED=1"
+)
+
+if [ ! -d "$PREFIX/drive_c" ]; then
+  echo "creating fresh wine prefix for FIFA $VER..." | tee -a "$LOG"
+  env "${env_base[@]}" WINEDEBUG=-all "$WINE" wineboot --init >> "$LOG" 2>&1
+  env "${env_base[@]}" "$WINESERVER" -w
+
+  echo "installing winetricks deps (dotnet48, vcrun2019, corefonts, d3dcompiler_47)..." | tee -a "$LOG"
+  if [ ! -x "$WINETRICKS" ]; then
+    echo "winetricks not found at $WINETRICKS, install with: brew install winetricks" >&2
+    exit 2
+  fi
+  env "${env_base[@]}" WINE="$WINE" "$WINETRICKS" -q dotnet48 vcrun2019 corefonts d3dcompiler_47 >> "$LOG" 2>&1
+  env "${env_base[@]}" "$WINESERVER" -w
+fi
+
+# DLL override registry (mirror of env, persisted for subprocess inheritance).
+for k in d3d9 d3d11 d3d10core d3d12 dxgi; do
+  env "${env_base[@]}" WINEDEBUG=-all "$WINE" reg add \
+    "HKCU\\Software\\Wine\\DllOverrides" /v "$k" /d native,builtin /f >> "$LOG" 2>&1
+done
+for k in nvapi nvapi64; do
+  env "${env_base[@]}" WINEDEBUG=-all "$WINE" reg add \
+    "HKCU\\Software\\Wine\\DllOverrides" /v "$k" /d "" /f >> "$LOG" 2>&1
+done
+
+# Virtual desktop registry (windowed at requested resolution).
+env "${env_base[@]}" WINEDEBUG=-all "$WINE" reg add \
+  "HKCU\\Software\\Wine\\Explorer" /v Desktop /d Default /f >> "$LOG" 2>&1
+env "${env_base[@]}" WINEDEBUG=-all "$WINE" reg add \
+  "HKCU\\Software\\Wine\\Explorer\\Desktops" /v Default \
+  /d "${RES_W}x${RES_H}" /f >> "$LOG" 2>&1
+env "${env_base[@]}" "$WINESERVER" -w
+
+# Force DX11 via the game's config file. Only applies to FIFA 20/21/22 where
+# fifasetup exposes a DX12-vs-DX11 toggle and the DX11 path is the safer one
+# for D3DMetal. FIFA 14 is D3D9, 15-19 are D3D11 native, 23 is D3D12-only:
+# none of those have a DXVersion knob to set, so skip the patch.
+case "$VER" in
+  20|21|22)
+    DOCS="$PREFIX/drive_c/users/$USER/Documents/FIFA $VER"
+    mkdir -p "$DOCS"
+    CONFIG="$DOCS/fifasetup/installerdata.xml"
+    if [ -f "$CONFIG" ]; then
+      if ! grep -q "DXVersion" "$CONFIG"; then
+        sed -i.bak 's|</LocaleInfo>|</LocaleInfo><Locale Name="DXVersion" Value="DX11"/>|' "$CONFIG"
+        echo "patched DXVersion=DX11 into $CONFIG" >> "$LOG"
+      fi
+    fi
+    ;;
+esac
+
+# Sanity check on game files before launching.
+if [ ! -d "$GAME_DIR" ]; then
+  echo "ERROR: game dir not found: $GAME_DIR" | tee -a "$LOG" >&2
+  echo "place a SteamRIP / Online-Fix-style standalone build (no Origin / EA App) at:" >&2
+  echo "  $GAME_DIR/$GAME_EXE" >&2
+  exit 3
+fi
+if [ ! -f "$GAME_DIR/$GAME_EXE" ]; then
+  echo "ERROR: exe not found: $GAME_DIR/$GAME_EXE" | tee -a "$LOG" >&2
+  echo "if the exe has a different name (FIFA19_x64.exe etc.), edit GAME_EXE at top of this script" >&2
+  exit 4
+fi
+
+cd "$GAME_DIR"
+echo "===== game output =====" >> "$LOG"
+
+env "${env_base[@]}" \
+  WINEDEBUG=err+all,fixme-all \
+  "$WINE" "./$GAME_EXE" >> "$LOG" 2>&1 &
+
+WPID=$!
+echo "$WPID" > "$PIDFILE"
+echo "wine pid: $WPID" >> "$LOG"
+echo "started FIFA $VER on cellar hybrid runtime, pid $WPID (log: $LOG)"
+echo "to monitor: tail -f $LOG"
+echo "to kill:    kill -9 \$(cat $PIDFILE) && pkill -9 wineserver"

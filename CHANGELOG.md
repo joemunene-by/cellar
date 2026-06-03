@@ -2,6 +2,72 @@
 
 ## Unreleased
 
+### Added — FIFA 14-23 launcher template (Impact / Ignite / Frostbite via D3DMetal)
+
+Same hybrid runtime as CarX (CrossOver 26 wine 11.0 + Apple GPTK
+D3DMetal 3.0 forwarders) now wired up for ten FIFA titles, spanning
+three engines (Impact, Ignite, Frostbite) and three graphics APIs
+(D3D9, D3D11, D3D12). Four pieces went in:
+
+- **`scripts/launch-fifa.sh <version>`** — parametrized launcher that
+  takes `14` through `23` as its first arg, creates a per-version
+  bottle under `~/.cellar/bottles/fifa<ver>/prefix`, and installs the
+  FIFA winetricks set on first boot (`dotnet48 vcrun2019 corefonts
+  d3dcompiler_47`). DLL overrides set `d3d11,d3d12,dxgi,d3d10core=n,b`
+  (D3DMetal handles them) plus the per-prefix `d3d9` override for v14
+  (registered via `reg add`), and `nvapi,nvapi64=disabled` (FIFA
+  probes for NVIDIA paths it never finds on Apple Silicon). For
+  20/21/22 the script patches `Documents/FIFA <year>/fifasetup/
+  installerdata.xml` to add `DXVersion=DX11`, forcing the DX11 path
+  that those three games still ship as a fallback. FIFA 14-19 don't
+  expose a DXVersion knob (single API only), and FIFA 23 has no DX11
+  fallback to force, so the patch step is conditional.
+- **`scripts/make-fifa-apps.sh`** — wraps `make-game-app.sh` to spit
+  out one clickable `.app` bundle per installed FIFA version under
+  `/Applications/cellar Games/FIFA <N>.app`. Each .app's MacOS
+  binary calls `launch-fifa.sh <N>` with the right version baked in,
+  so Launchpad / Dock / Spotlight see them as normal apps.
+- **`profiles.json`** — new `fifa-14-23` profile that auto-applies
+  when a library entry contains any `"fifa 14"` … `"fifa 23"` (or
+  the no-space form). Mirrors the launcher env block so the in-app
+  library launcher in cellar's Tauri shell produces the same runtime
+  as the standalone script.
+
+#### Per-version verdicts going into the test phase
+
+| Version | Engine | API | Anti-cheat | Verdict |
+|---|---|---|---|---|
+| FIFA 14 | Impact | D3D9 | none | works through D3DMetal d3d9 path (same as NFS:MW) |
+| FIFA 15 | Ignite | D3D11 | none | should "just work" |
+| FIFA 16 | Ignite | D3D11 | none | should "just work" |
+| FIFA 17 | Frostbite | D3D11 | none | first Frostbite FIFA, expect minor shader tweaks |
+| FIFA 18 | Frostbite | D3D11 | none | probable |
+| FIFA 19 | Frostbite | D3D11 native | none | best modern starting point, CrossOver compat entry exists |
+| FIFA 20 | Frostbite | DX12 default, DX11 fallback | none | probable, force DX11 |
+| FIFA 21 | Frostbite | DX12 default, DX11 fallback | none | probable, force DX11, skip Origin |
+| FIFA 22 | Frostbite | DX12 default, DX11 fallback | none | probable, force DX11, ProtonDB Gold baseline |
+| FIFA 23 | Frostbite | D3D12 only | EAAC kernel-mode (retail) | experimental, requires offline-EAAC-bypass crack |
+
+#### Source-selection rule
+
+Every FIFA build must be standalone (no EA App / Origin / EA Desktop)
+and **must not be a FitGirl or DODI repack**. The `cls-*.dll`
+shared-memory IPC deadlock from cellar v0.2 still blocks the
+lollypop/lolzi/lolzx codec chain on wine 11 + macOS 15. SteamRIP and
+Online-Fix pre-installed builds skip both the EA launcher and the
+proprietary codec chain, so they are the only viable sources here.
+
+#### FIFA 23 specifically
+
+Retail FIFA 23 ships EA AntiCheat (kernel-mode, no wine support).
+Community SteamRIP / Online-Fix releases ship without EAAC for
+offline / career mode, which is the only path on cellar. With EAAC
+gone, the second wall is Frostbite's DX12 path on D3DMetal: same
+class of bindless + min16float shaders that gave CarX its vertex
+glitch before the D3DMetal 3.0 swap. D3DMetal 3.0 unblocked CarX, so
+FIFA 23 is worth trying, but it sits behind 19-22 in the test order
+until a working boot is logged.
+
 ### Added — modern Unity titles on M-series (CarX Street recipe)
 
 The CarX Street launch tonight validated the hybrid runtime end-to-end
