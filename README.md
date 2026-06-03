@@ -1,4 +1,13 @@
-# cellar
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img src="assets/logo.svg" alt="cellar" width="280">
+  </picture>
+</p>
+
+<h1 align="center">cellar</h1>
+
+<p align="center">
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%2015%20%C2%B7%20Apple%20Silicon-black)](https://www.apple.com/macos/)
@@ -7,6 +16,8 @@
 [![Built with](https://img.shields.io/badge/built%20with-Tauri%202%20%C2%B7%20Rust%20%C2%B7%20React-orange)](https://tauri.app)
 [![Status](https://img.shields.io/badge/status-alpha-yellow)](#known-issues)
 [![Last commit](https://img.shields.io/github/last-commit/joemunene-by/cellar)](https://github.com/joemunene-by/cellar/commits/main)
+
+</p>
 
 Mac mini M4 launcher for Windows games. Drop a game under
 `~/Games-source/<Name>/`, pick the matching engine-family profile, get a

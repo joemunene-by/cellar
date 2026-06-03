@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" role="img" aria-label="cellar logo (dark mode)">
+  <title>cellar</title>
+  <g transform="translate(8, 8)">
+    <rect x="0" y="0" width="64" height="64" rx="8" fill="#0a0a0a" stroke="#fafafa" stroke-width="3"/>
+    <g>
+      <rect x="6" y="10" width="38" height="7" rx="2" fill="#a78bfa"/>
+      <rect x="44" y="12" width="6" height="3" rx="1" fill="#a78bfa"/>
+      <rect x="6" y="25" width="38" height="7" rx="2" fill="#fbbf24"/>
+      <rect x="44" y="27" width="6" height="3" rx="1" fill="#fbbf24"/>
+      <rect x="6" y="40" width="38" height="7" rx="2" fill="#a78bfa"/>
+      <rect x="44" y="42" width="6" height="3" rx="1" fill="#a78bfa"/>
+    </g>
+  </g>
+  <text x="92" y="56" font-family="system-ui, -apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif" font-weight="700" font-size="48" fill="#fafafa" letter-spacing="-1.2">cellar</text>
+</svg>

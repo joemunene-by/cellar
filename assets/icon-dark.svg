@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="cellar icon (dark mode)">
+  <title>cellar</title>
+  <rect x="3" y="3" width="58" height="58" rx="8" fill="#0a0a0a" stroke="#fafafa" stroke-width="3"/>
+  <g>
+    <rect x="9" y="13" width="38" height="7" rx="2" fill="#a78bfa"/>
+    <rect x="47" y="15" width="6" height="3" rx="1" fill="#a78bfa"/>
+    <rect x="9" y="28" width="38" height="7" rx="2" fill="#fbbf24"/>
+    <rect x="47" y="30" width="6" height="3" rx="1" fill="#fbbf24"/>
+    <rect x="9" y="43" width="38" height="7" rx="2" fill="#a78bfa"/>
+    <rect x="47" y="45" width="6" height="3" rx="1" fill="#a78bfa"/>
+  </g>
+</svg>
