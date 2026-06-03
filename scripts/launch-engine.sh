@@ -115,6 +115,14 @@ env_base=(
   "WINEESYNC=0"
 )
 
+# Optional toggles from the launcher's own env (not the profile):
+#   CELLAR_METAL_HUD=1  -> enable Apple's Metal performance HUD overlay
+#   CELLAR_WINEDEBUG=X  -> override the default WINEDEBUG flags
+if [ "${CELLAR_METAL_HUD:-0}" = "1" ]; then
+  env_base+=("MTL_HUD_ENABLED=1")
+  echo "Metal HUD enabled (CELLAR_METAL_HUD=1)" >> "$LOG"
+fi
+
 # Append profile env on top of the base.
 for kv in "${env_extra[@]}"; do
   env_base+=("$kv")
@@ -274,8 +282,9 @@ echo "===== game output =====" >> "$LOG"
 # the caller passed after <game-dir> (e.g. -sgadriver=Vulkan from launch-rdr2.sh).
 all_args=("${launch_args[@]}" "${EXTRA_GAME_ARGS[@]}")
 echo "game args: ${all_args[*]:-(none)}" >> "$LOG"
+WINEDEBUG_FLAGS="${CELLAR_WINEDEBUG:-err+all,fixme-all}"
 env "${env_base[@]}" \
-  WINEDEBUG=err+all,fixme-all \
+  WINEDEBUG="$WINEDEBUG_FLAGS" \
   "$WINE" "./$RESOLVED_EXE" "${all_args[@]}" >> "$LOG" 2>&1 &
 
 WPID=$!

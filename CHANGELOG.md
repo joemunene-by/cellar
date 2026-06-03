@@ -2,6 +2,61 @@
 
 ## Unreleased
 
+### Added — proactive install, log analyzer, bottle inspector, profile finder, Metal HUD
+
+Five more user-loop additions plus two env-var toggles on the
+generic launcher. These hit the actual friction points: how do I
+set up a bottle without launching, how do I debug a failed launch,
+how do I see what's actually in a bottle, which profile matches my
+game, and how do I get the Metal HUD overlay.
+
+- **`scripts/cellar-install.sh <profile-id> "<game-dir>"`** —
+  proactive bottle setup. Does the wineboot init + winetricks
+  install + DLL override registry write upfront, so the first real
+  launch goes straight to the game instead of pausing 5-10 minutes
+  for first-run setup. Also runs sanity checks (game dir contains
+  at least one exe, profile id is real, prereqs are present) before
+  starting. Prints manual follow-up hints for non-winetricks
+  requires like `proton_winrt_dlls`. Ends by running
+  `cellar-doctor.sh` for a final state check.
+
+- **`scripts/analyze-log.sh [log-path]`** — pattern matcher for
+  cellar launcher logs. Encodes 15 known failure signatures
+  (DispatcherQueue activation gap, winemac.drv HWND deadlock,
+  WINEDLLPATH bootstrap conflict, Media Foundation codec gap,
+  D3DMetal device-creation failure, MoltenVK init failure, EA
+  AntiCheat, kernel-mode anti-cheat generic, Rockstar Launcher
+  required, Ubisoft Connect required, FitGirl cls codec deadlock,
+  32-bit / WoW64 issue, Steam stub missing, OOM, .NET assembly
+  missing) and prints the matching diagnosis + remediation hint
+  for each pattern that fires in the log. No log argument: auto-
+  picks the most recently modified cellar log in /tmp.
+
+- **`scripts/bottle-inspect.sh <bottle>`** — read-only introspection
+  for a bottle. Prints prefix path + size, .update-timestamp,
+  wine version, DllOverrides parsed from user.reg, installed
+  Program Files entries, the last 30 lines of winetricks.log,
+  available save backups, and a pointer to the most recent launch
+  log with the analyzer command pre-baked. `--list` enumerates
+  available bottles.
+
+- **`scripts/find-profile.sh "<game name>"`** — given a game name,
+  walks `profiles.json` and finds the profile whose
+  `match_name_contains` list has a case-insensitive substring hit.
+  Prints the best-match id, name, first sentence of description,
+  any other overlapping profiles, plus the install / launch /
+  app-create commands ready to copy-paste. If no profile matches,
+  lists all profile ids so the user can pick one manually.
+
+- **Metal HUD toggle in `launch-engine.sh`** — `CELLAR_METAL_HUD=1
+  scripts/launch-engine.sh <profile> "<game>"` sets
+  `MTL_HUD_ENABLED=1` for the wine process, which causes Apple's
+  Metal performance overlay to render on top of the game. Useful
+  for confirming D3DMetal is actually doing GPU work and what FPS
+  / GPU load you're getting. Also added `CELLAR_WINEDEBUG` env to
+  override the default `err+all,fixme-all` flags from the caller's
+  env (handy when debugging a specific subsystem).
+
 ### Added — doctor, save-game backup, log viewer, dedicated RDR2 + Bethesda launchers
 
 Five quality-of-life additions plus a launch-engine.sh extension that
