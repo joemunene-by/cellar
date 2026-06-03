@@ -12,16 +12,29 @@ three engines (Impact, Ignite, Frostbite) and three graphics APIs
 - **`scripts/launch-fifa.sh <version>`** — parametrized launcher that
   takes `14` through `23` as its first arg, creates a per-version
   bottle under `~/.cellar/bottles/fifa<ver>/prefix`, and installs the
-  FIFA winetricks set on first boot (`dotnet48 vcrun2019 corefonts
-  d3dcompiler_47`). DLL overrides set `d3d11,d3d12,dxgi,d3d10core=n,b`
-  (D3DMetal handles them) plus the per-prefix `d3d9` override for v14
-  (registered via `reg add`), and `nvapi,nvapi64=disabled` (FIFA
-  probes for NVIDIA paths it never finds on Apple Silicon). For
-  20/21/22 the script patches `Documents/FIFA <year>/fifasetup/
-  installerdata.xml` to add `DXVersion=DX11`, forcing the DX11 path
-  that those three games still ship as a fallback. FIFA 14-19 don't
-  expose a DXVersion knob (single API only), and FIFA 23 has no DX11
-  fallback to force, so the patch step is conditional.
+  FIFA winetricks set on first boot (`vcrun2019 corefonts
+  d3dcompiler_47` as required, plus `dotnet48` as best-effort: the
+  dotnet48 verb is known broken on Apple Silicon prefixes per
+  winetricks #2246 / #1792, so it tries and continues on failure).
+  Pre-checks that `cabextract` is on PATH because `d3dcompiler_47`
+  silently fails without it (winetricks #1012). DLL overrides set
+  `d3d11,d3d12,dxgi,d3d10core=n,b` in env (D3DMetal handles them)
+  plus a per-prefix `d3d9=native,builtin` reg add for v14, and
+  `nvapi,nvapi64=` (empty value = disabled per wine's loader
+  grammar; the literal `disabled` is NOT a valid override token and
+  silently falls back to default). For 20/21/22 the script patches
+  `Documents/FIFA <year>/fifasetup.ini` with `DIRECTX_SELECT = 0`
+  (0 = DX11, 1 = DX12). This is the actual community-documented DX
+  toggle (sources: windowsreport, Steam community, drivereasy);
+  earlier drafts of this launcher targeted `installerdata.xml` with
+  a `<Locale>` tag, which is the EA installer manifest and does not
+  control runtime DX selection. FIFA 14-19 don't expose a
+  DIRECTX_SELECT (single API only), and FIFA 23 has no DX11 fallback
+  to force, so the patch step is conditional. Exe casing varies
+  across versions (14-17 are lowercase `fifaNN.exe`, 18-23 are
+  uppercase, repacks add suffixes), so the launcher resolves the
+  exe case-insensitively from the game dir at launch time rather
+  than hard-coding the name.
 - **`scripts/make-fifa-apps.sh`** — wraps `make-game-app.sh` to spit
   out one clickable `.app` bundle per installed FIFA version under
   `/Applications/cellar Games/FIFA <N>.app`. Each .app's MacOS
@@ -60,13 +73,29 @@ proprietary codec chain, so they are the only viable sources here.
 #### FIFA 23 specifically
 
 Retail FIFA 23 ships EA AntiCheat (kernel-mode, no wine support).
-Community SteamRIP / Online-Fix releases ship without EAAC for
-offline / career mode, which is the only path on cellar. With EAAC
-gone, the second wall is Frostbite's DX12 path on D3DMetal: same
-class of bindless + min16float shaders that gave CarX its vertex
-glitch before the D3DMetal 3.0 swap. D3DMetal 3.0 unblocked CarX, so
-FIFA 23 is worth trying, but it sits behind 19-22 in the test order
-until a working boot is logged.
+Community releases bypass it at the user-mode handshake level (the
+scene release is MKDEV's crack, redistributed via DODI Repacks and
+similar), shipping a "fake anti cheat" folder that sidesteps the
+EAAC handshake without touching the kernel driver. Offline /
+Career / Kick Off / skill games work after the bypass; online modes
+(FUT etc.) still phone home and fail.
+
+With EAAC bypassed, the second wall is Frostbite's DX12 path on
+D3DMetal: same class of bindless + min16float shaders that gave
+CarX its vertex glitch before the D3DMetal 3.0 swap. D3DMetal 3.0
+unblocked CarX, so FIFA 23 is worth trying, but it sits behind
+19-22 in the test order until a working boot is logged.
+
+#### Honest disclaimer on Mac success
+
+The verdict table reflects engine + API + anti-cheat compatibility
+on paper. **As of writing, there is no public report of any FIFA
+from 21 onward reaching the main menu on Apple Silicon via D3DMetal
+in any configuration.** The AppleGamingWiki FIFA 22 page exists but
+no positive boot record on Mac surfaced in research. The launcher
+is a best-effort recipe based on the engine / API path and the CarX
+D3DMetal 3.0 unblock; treat every version above 19 as speculative
+until a working boot is logged in this CHANGELOG.
 
 ### Added — modern Unity titles on M-series (CarX Street recipe)
 

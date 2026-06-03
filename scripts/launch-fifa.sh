@@ -34,14 +34,16 @@ WINESERVER="$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver
 WINETRICKS="$(command -v winetricks || echo /opt/homebrew/bin/winetricks)"
 PREFIX="$HOME/.cellar/bottles/fifa$VER/prefix"
 GAME_DIR="$HOME/Games-source/FIFA $VER"
-GAME_EXE="FIFA$VER.exe"
+# GAME_EXE is resolved case-insensitively at launch time from GAME_DIR.
+GAME_EXE=""
 LOG="/tmp/fifa$VER.log"
 PIDFILE="/tmp/fifa$VER.pid"
 RES_W=1920
 RES_H=1080
 
 pkill -9 -f "wine64-preloader" 2>/dev/null
-pkill -9 -f "$GAME_EXE" 2>/dev/null
+# pkill -f uses regex on BSD/macOS; this catches FIFA<N>.exe regardless of case.
+pkill -9 -f "[Ff][Ii][Ff][Aa]${VER}" 2>/dev/null
 pkill -9 -f "EAAntiCheat" 2>/dev/null
 pkill -9 -f "EALaunchHelper" 2>/dev/null
 pkill -9 -f "OriginWebHelperService" 2>/dev/null
@@ -53,12 +55,17 @@ mkdir -p "$(dirname "$PREFIX")"
 echo "===== launch $(date) FIFA $VER =====" > "$LOG"
 echo "wine: $WINE ($("$WINE" --version 2>&1))" >> "$LOG"
 echo "game dir: $GAME_DIR" >> "$LOG"
-echo "exe: $GAME_EXE" >> "$LOG"
 
 # Base env shared with CarX hybrid (CrossOver wine + apple_gptk D3DMetal 3.0).
-# No DXVK: FIFA 19/20 are D3D11-native; FIFA 21/22 default DX12 but we force
-# DX11 via the game's fifa_setup.exe in each per-version section below, so
-# D3DMetal's D3D11 -> Metal path handles it directly without DXVK.
+# No DXVK: FIFA 14 is D3D9 (routed through D3DMetal directly); 15-19 are D3D11
+# native; 20/21/22 default DX12 but we force DX11 via fifasetup.ini in each
+# per-version section below; 23 is D3D12-only.
+#
+# WINEDLLOVERRIDES grammar (wine ntdll/loader.c): "n" native, "b" builtin,
+# empty = disabled. The literal token "disabled" is NOT in the grammar and
+# silently falls back to default load order (which for nvapi/nvapi64 means
+# the wine stub loads). Trailing equals + nothing is how you actually
+# disable a DLL via env.
 env_base=(
   "WINEPREFIX=$PREFIX"
   "DYLD_FRAMEWORK_PATH=$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/lib64/apple_gptk/external"
@@ -66,7 +73,7 @@ env_base=(
   "DYLD_LIBRARY_PATH=/opt/homebrew/lib"
   "ROSETTA_ADVERTISE_AVX=1"
   "WINEESYNC=0"
-  "WINEDLLOVERRIDES=winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=disabled"
+  "WINEDLLOVERRIDES=winemenubuilder.exe=d;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64="
   "MVK_CONFIG_USE_METAL_PRIVATE_API=1"
   "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=2"
   "MVK_CONFIG_FAST_MATH_ENABLED=1"
@@ -77,12 +84,29 @@ if [ ! -d "$PREFIX/drive_c" ]; then
   env "${env_base[@]}" WINEDEBUG=-all "$WINE" wineboot --init >> "$LOG" 2>&1
   env "${env_base[@]}" "$WINESERVER" -w
 
-  echo "installing winetricks deps (dotnet48, vcrun2019, corefonts, d3dcompiler_47)..." | tee -a "$LOG"
   if [ ! -x "$WINETRICKS" ]; then
     echo "winetricks not found at $WINETRICKS, install with: brew install winetricks" >&2
     exit 2
   fi
-  env "${env_base[@]}" WINE="$WINE" "$WINETRICKS" -q dotnet48 vcrun2019 corefonts d3dcompiler_47 >> "$LOG" 2>&1
+  # d3dcompiler_47 silently fails without cabextract on a fresh prefix
+  # (winetricks issue #1012). Bail loudly if it's missing.
+  if ! command -v cabextract >/dev/null 2>&1; then
+    echo "cabextract not found, install with: brew install cabextract" >&2
+    echo "(d3dcompiler_47 verb fails without it)" >&2
+    exit 2
+  fi
+  echo "installing winetricks deps (vcrun2019, corefonts, d3dcompiler_47)..." | tee -a "$LOG"
+  env "${env_base[@]}" WINE="$WINE" "$WINETRICKS" -q vcrun2019 corefonts d3dcompiler_47 >> "$LOG" 2>&1
+  env "${env_base[@]}" "$WINESERVER" -w
+
+  # dotnet48 is known broken via winetricks on Apple Silicon prefixes
+  # (winetricks #2246 broken download, #1792 arbitrary failures). FIFA does
+  # not strictly need .NET 4.8 to launch the game itself, only some EA
+  # launcher utilities do, and we are bypassing those. Try it anyway, but
+  # do not fail the install if it errors.
+  echo "trying dotnet48 (best-effort, ok if it fails)..." | tee -a "$LOG"
+  env "${env_base[@]}" WINE="$WINE" "$WINETRICKS" -q dotnet48 >> "$LOG" 2>&1 || \
+    echo "dotnet48 install failed, continuing without it" | tee -a "$LOG"
   env "${env_base[@]}" "$WINESERVER" -w
 fi
 
@@ -104,36 +128,70 @@ env "${env_base[@]}" WINEDEBUG=-all "$WINE" reg add \
   /d "${RES_W}x${RES_H}" /f >> "$LOG" 2>&1
 env "${env_base[@]}" "$WINESERVER" -w
 
-# Force DX11 via the game's config file. Only applies to FIFA 20/21/22 where
-# fifasetup exposes a DX12-vs-DX11 toggle and the DX11 path is the safer one
-# for D3DMetal. FIFA 14 is D3D9, 15-19 are D3D11 native, 23 is D3D12-only:
-# none of those have a DXVersion knob to set, so skip the patch.
+# Force DX11 via the game's config INI. Only applies to FIFA 20/21/22 where
+# fifasetup exposes a DX12-vs-DX11 toggle and DX11 is the safer path under
+# D3DMetal. FIFA 14 (D3D9), 15-19 (D3D11 native), and 23 (D3D12-only) don't
+# have a DIRECTX_SELECT knob.
+#
+# File: Documents/FIFA <year>/fifasetup.ini (plaintext INI, NOT installerdata.xml).
+# Key:  DIRECTX_SELECT = 0  (0=DX11, 1=DX12)
+# This is the same edit the Windows community uses to fix DXGI_ERROR_DEVICE_REMOVED
+# on the DX12 path; documented across windowsreport / Steam forum / drivereasy.
 case "$VER" in
   20|21|22)
     DOCS="$PREFIX/drive_c/users/$USER/Documents/FIFA $VER"
     mkdir -p "$DOCS"
-    CONFIG="$DOCS/fifasetup/installerdata.xml"
-    if [ -f "$CONFIG" ]; then
-      if ! grep -q "DXVersion" "$CONFIG"; then
-        sed -i.bak 's|</LocaleInfo>|</LocaleInfo><Locale Name="DXVersion" Value="DX11"/>|' "$CONFIG"
-        echo "patched DXVersion=DX11 into $CONFIG" >> "$LOG"
+    INI="$DOCS/fifasetup.ini"
+    if [ -f "$INI" ]; then
+      if grep -qE "^DIRECTX_SELECT" "$INI"; then
+        sed -i.bak -E 's|^DIRECTX_SELECT[[:space:]]*=.*|DIRECTX_SELECT = 0|' "$INI"
+        echo "patched DIRECTX_SELECT=0 (DX11) in $INI" >> "$LOG"
+      else
+        echo "DIRECTX_SELECT = 0" >> "$INI"
+        echo "appended DIRECTX_SELECT=0 (DX11) to $INI" >> "$LOG"
       fi
+    else
+      mkdir -p "$DOCS"
+      echo "DIRECTX_SELECT = 0" > "$INI"
+      echo "seeded $INI with DIRECTX_SELECT=0 (DX11)" >> "$LOG"
     fi
     ;;
 esac
 
-# Sanity check on game files before launching.
+# Sanity check on game files before launching. Exe casing varies across FIFA
+# versions (e.g. FIFA 14-17 are lowercase "fifaNN.exe", 18-23 are uppercase
+# "FIFANN.exe", and various cracked releases use suffixes like _x64). Resolve
+# case-insensitively against the actual files in the game dir, only at launch
+# time, rather than hard-coding casing.
 if [ ! -d "$GAME_DIR" ]; then
   echo "ERROR: game dir not found: $GAME_DIR" | tee -a "$LOG" >&2
   echo "place a SteamRIP / Online-Fix-style standalone build (no Origin / EA App) at:" >&2
-  echo "  $GAME_DIR/$GAME_EXE" >&2
+  echo "  $GAME_DIR/" >&2
   exit 3
 fi
-if [ ! -f "$GAME_DIR/$GAME_EXE" ]; then
-  echo "ERROR: exe not found: $GAME_DIR/$GAME_EXE" | tee -a "$LOG" >&2
-  echo "if the exe has a different name (FIFA19_x64.exe etc.), edit GAME_EXE at top of this script" >&2
+# Prefer the literal "FIFA<ver>.exe" if present (case-insensitive); else fall
+# back to the first fifa*.exe at the top of the game dir.
+RESOLVED_EXE=""
+while IFS= read -r f; do
+  base=$(basename "$f")
+  RESOLVED_EXE="$base"
+  break
+done < <(cd "$GAME_DIR" && find . -maxdepth 1 -iname "fifa${VER}*.exe" 2>/dev/null | sort)
+if [ -z "$RESOLVED_EXE" ]; then
+  while IFS= read -r f; do
+    base=$(basename "$f")
+    RESOLVED_EXE="$base"
+    break
+  done < <(cd "$GAME_DIR" && find . -maxdepth 1 -iname "fifa*.exe" 2>/dev/null | sort)
+fi
+if [ -z "$RESOLVED_EXE" ]; then
+  echo "ERROR: no fifa*.exe found in $GAME_DIR" | tee -a "$LOG" >&2
+  echo "expected something like fifa${VER}.exe or FIFA${VER}.exe at the top of the game dir" >&2
+  ls "$GAME_DIR" >&2 || true
   exit 4
 fi
+GAME_EXE="$RESOLVED_EXE"
+echo "resolved exe: $GAME_EXE" >> "$LOG"
 
 cd "$GAME_DIR"
 echo "===== game output =====" >> "$LOG"

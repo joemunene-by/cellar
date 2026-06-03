@@ -330,16 +330,23 @@ not as a supported launch runtime.
 (CrossOver wine 11.0 + Apple GPTK D3DMetal 3.0) for ten FIFA titles
 spanning three engines. It creates a per-version bottle at
 `~/.cellar/bottles/fifa<ver>/prefix`, runs
-`winetricks dotnet48 vcrun2019 corefonts d3dcompiler_47` on first
-boot, sets `WINEDLLOVERRIDES` to route `d3d11,d3d12,dxgi,d3d10core=n,b`
-(D3DMetal handles them), registers `d3d9` as `native,builtin` (for
-FIFA 14's Impact engine), and disables `nvapi,nvapi64` (FIFA probes
-NVIDIA-only paths that never resolve on Apple Silicon). For
-v20/21/22 the script also patches `Documents/FIFA <year>/fifasetup/
-installerdata.xml` to add `DXVersion=DX11`, forcing the DX11 fallback
-that those games still ship. `scripts/make-fifa-apps.sh <14..23>`
-produces a clickable `/Applications/cellar Games/FIFA <N>.app`
-bundle per installed version, same wrapper pattern as CarX.
+`winetricks vcrun2019 corefonts d3dcompiler_47` on first boot (with
+`dotnet48` attempted best-effort because winetricks #2246 / #1792
+break it on Apple Silicon prefixes), sets `WINEDLLOVERRIDES` to
+route `d3d11,d3d12,dxgi,d3d10core=n,b` (D3DMetal handles them) and
+`nvapi,nvapi64=` (empty value = disabled per wine's loader grammar;
+the literal `disabled` is NOT a valid token and silently falls back
+to default). For FIFA 14 it adds `d3d9=native,builtin` via reg add.
+For v20/21/22 the script patches `Documents/FIFA <year>/fifasetup.ini`
+with `DIRECTX_SELECT = 0` (0=DX11, 1=DX12), the actual community-
+documented DX toggle. `scripts/make-fifa-apps.sh <14..23>` produces
+a clickable `/Applications/cellar Games/FIFA <N>.app` bundle per
+installed version, same wrapper pattern as CarX.
+
+Exe casing varies across versions (14-17 are lowercase `fifaNN.exe`,
+18-23 are uppercase, cracked releases sometimes add `_x64` suffixes),
+so the launcher resolves the exe case-insensitively from the game
+dir at launch time rather than hard-coding the name.
 
 Per-version status:
 
@@ -372,6 +379,15 @@ IPC deadlock documented below blocks the lollypop / lolzi / lolzx
 codec chain on wine 11 + macOS 15. SteamRIP and Online-Fix pre-
 installed builds skip both the EA launcher and the proprietary
 codec chain, so they are the only viable sources here.
+
+Reality check: as of writing there is no public report of any FIFA
+from 21 onward reaching the main menu on Apple Silicon via D3DMetal
+in any configuration. AppleGamingWiki has a FIFA 22 page but
+nothing surfaced from it confirms a working boot. Treat the recipe
+above as best-effort engineering against the engine / API / anti-
+cheat profile; expect to debug. FIFA 19 (D3D11 native, no anti-
+cheat, has a CodeWeavers compatibility entry) is the lowest-risk
+starting point.
 
 ### winemac.drv HWND lifecycle deadlock (FitGirl installs)
 
