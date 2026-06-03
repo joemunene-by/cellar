@@ -1,8 +1,47 @@
 # cellar
 
-Mac mini M4 launcher for Windows games. Built for FitGirl repacks and
-similar one-click installers that expect a real Windows-shaped
-environment.
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%2015%20%C2%B7%20Apple%20Silicon-black)](https://www.apple.com/macos/)
+[![Wine](https://img.shields.io/badge/wine-CrossOver%2026%20%C2%B7%2011.0-purple)](https://www.codeweavers.com/crossover)
+[![D3DMetal](https://img.shields.io/badge/D3DMetal-3.0-success)](https://developer.apple.com/games/game-porting-toolkit/)
+[![Built with](https://img.shields.io/badge/built%20with-Tauri%202%20%C2%B7%20Rust%20%C2%B7%20React-orange)](https://tauri.app)
+[![Status](https://img.shields.io/badge/status-alpha-yellow)](#known-issues)
+[![Last commit](https://img.shields.io/github/last-commit/joemunene-by/cellar)](https://github.com/joemunene-by/cellar/commits/main)
+
+Mac mini M4 launcher for Windows games. Drop a game under
+`~/Games-source/<Name>/`, pick the matching engine-family profile, get a
+clickable `.app` in `/Applications/cellar Games/`. Built for FitGirl-
+adjacent repacks and standalone cracked builds that expect a real
+Windows-shaped environment.
+
+## quick start
+
+```sh
+# clone + one-time GPTK install
+git clone https://github.com/joemunene-by/cellar.git
+cd cellar
+./scripts/setup-gptk.sh
+
+# health check
+./scripts/cellar-doctor.sh
+
+# match a game to an engine-family profile
+./scripts/find-profile.sh "Need for Speed Heat"
+#   Best match: frostbite-multi
+
+# proactive bottle setup (so first launch goes straight to the game)
+./scripts/cellar-install.sh frostbite-multi "Need for Speed Heat"
+
+# make it a clickable app
+./scripts/make-cellar-app.sh frostbite-multi "Need for Speed Heat"
+
+# if a launch fails, scan the log for known failure patterns
+./scripts/analyze-log.sh
+```
+
+Covered out of the box: **60+ games across 10 engines** via runtime
+profiles in [`profiles.json`](profiles.json). See the [scripts
+reference](#scripts-reference) for the full tooling.
 
 ## what
 
@@ -46,6 +85,88 @@ Rosetta 2  (system-wide on every M-series Mac)
   v
 Metal + the M4 GPU
 ```
+
+## scripts reference
+
+Every tool lives under [`scripts/`](scripts/) and is a standalone bash
+script. The full loop has no required UI; the Tauri shell on top is
+optional polish.
+
+### user-facing
+
+| Script | What it does |
+|---|---|
+| `find-profile.sh "<game>"` | Match a game name to an engine-family profile |
+| `cellar-install.sh <profile> "<game>"` | Proactive bottle setup (wineboot + winetricks + overrides) |
+| `launch-engine.sh [--exe NAME] <profile> "<game>" [args]` | Generic profile-driven launcher |
+| `make-cellar-app.sh <profile> "<game>"` | Wrap a profile invocation as `/Applications/cellar Games/<name>.app` |
+| `cellar-logs.sh` | Browse `/tmp/*.log` cellar launcher logs (list / tail / open / prune) |
+| `analyze-log.sh [log]` | Match a launcher log against 15 known failure signatures, print diagnosis + fix |
+| `bottle-inspect.sh <bottle>` | Read-only introspection: prefix, wine version, DLL overrides, installed software, backups |
+| `backup-saves.sh <bottle>` | Tarball the bottle's Documents + AppData state to `~/.cellar/backups/` |
+| `cellar-doctor.sh` | One-shot health check (Rosetta, CrossOver, wine, D3DMetal, jq, winetricks, profiles) |
+
+### engine-family launchers
+
+| Script | Covers |
+|---|---|
+| `launch-fifa.sh <14..23>` | FIFA 14-23 (Impact / Ignite / Frostbite) with per-version DIRECTX_SELECT patch |
+| `make-fifa-apps.sh [versions]` | Generate `.app`s for one or more FIFA versions, auto-detects installed |
+| `launch-rdr2.sh [dir]` | RDR2 with `-sgadriver=Vulkan` for the MoltenVK path |
+| `launch-bethesda.sh <dir>` | Bethesda with SKSE / F4SE / NVSE / FOSE / OBSE auto-detect |
+| `launch-carxstreet-hybrid.sh` | CarX Street (verified working: Unity 2022 IL2CPP + Burst + Havok) |
+| `launch-nfsmw-whisky.sh` | NFS Most Wanted 2005 (verified working: D3D9 + Goldberg stub) |
+
+### setup + maintenance
+
+| Script | What it does |
+|---|---|
+| `setup-gptk.sh` | One-time install of Apple Game Porting Toolkit + Wine + DXVK |
+| `install-proton-winrt.sh <prefix>` | Stage Proton's WinRT family DLLs into a bottle (DispatcherQueue activation) |
+| `validate-profiles.sh` | Schema + grammar check on `profiles.json`; CI-friendly exit codes |
+| `make-game-app.sh "<name>" <script>` | Generic `.app` wrapper used by both `make-fifa-apps.sh` and `make-cellar-app.sh` |
+
+### internal / experimental
+
+`cls-setup.sh`, `cls-smoke.sh`, `freearc-smoke.sh`, and the
+`scripts/launch-carxstreet-*` variants document earlier hybrid-runtime
+experiments. See [`CHANGELOG.md`](CHANGELOG.md) for the lineage.
+
+### debug knobs
+
+```sh
+CELLAR_METAL_HUD=1   ./scripts/launch-engine.sh ...   # Apple Metal perf overlay
+CELLAR_WINEDEBUG=+heap ./scripts/launch-engine.sh ... # custom wine debug flags
+CELLAR_NO_SKSE=1     ./scripts/launch-bethesda.sh ... # skip SKSE auto-detect
+```
+
+## engine-family profiles
+
+Runtime profiles in [`profiles.json`](profiles.json) encode the recipe
+(DLL overrides, winetricks set, launch args, runtime prereqs) per
+engine. Adding a game in an already-covered family is a profile match,
+not new code.
+
+| Profile id | Engine | Sample games |
+|---|---|---|
+| `carx-street` | Unity 2022 IL2CPP | CarX Street (verified) |
+| `nfs-most-wanted-2005` | D3D9 | NFS Most Wanted 2005 (verified) |
+| `fifa-14-23` | Impact / Ignite / Frostbite | FIFA 14-23 (dedicated launcher) |
+| `frostbite-multi` | Frostbite | NFS Heat / Unbound, Battlefield, Mass Effect Andromeda, Dragon Age Inquisition |
+| `rage-rockstar` | Rockstar RAGE | GTA V, GTA IV, RDR2, Max Payne 3 |
+| `d3d9-classic` | D3D9 (32-bit) | GTA San Andreas / Vice City / III |
+| `unreal-engine-4-5` | UE4 / UE5 | Elden Ring, Sekiro, Dark Souls III, Hogwarts Legacy |
+| `re-engine` | Capcom RE Engine | RE2/3/4 Remake, Village, DMC5, Monster Hunter |
+| `anvilnext-ubisoft` | Ubisoft AnvilNext / Dunia / Disrupt | AC Origins / Odyssey / Valhalla, Far Cry 5/6 |
+| `redengine` | CDPR REDengine 3/4 | Cyberpunk 2077, Witcher 3 |
+| `bethesda-creation` | Bethesda Creation | Skyrim, Skyrim SE, Fallout 4/NV/3 |
+| `forzatech` | ForzaTech | Forza Horizon 4 / 5 (Steam build only) |
+| `pes-foxengine` | Fox Engine / UE4 | PES 2019-2021, eFootball 2024+ |
+| `unity-il2cpp-2022` | Unity 2022 IL2CPP (fallback) | any Unity 2022 game not matched above |
+
+`scripts/validate-profiles.sh` keeps these consistent (grammar of
+`WINEDLLOVERRIDES`, known winetricks verbs, no `-dx11` on DX12-only
+titles, etc.).
 
 ## why a new tool
 
