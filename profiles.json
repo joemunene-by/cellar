@@ -53,7 +53,7 @@
       "id": "fifa-14-23",
       "name": "FIFA 14-23 (Impact / Ignite / Frostbite)",
       "match_name_contains": ["fifa 14", "fifa 15", "fifa 16", "fifa 17", "fifa 18", "fifa 19", "fifa 20", "fifa 21", "fifa 22", "fifa 23", "fifa14", "fifa15", "fifa16", "fifa17", "fifa18", "fifa19", "fifa20", "fifa21", "fifa22", "fifa23"],
-      "description": "Ten FIFA titles spanning three engines, one runtime profile. FIFA 14 is Impact + D3D9 (routed through D3DMetal's D3D9 path same as NFS:MW). FIFA 15-16 are Ignite + D3D11. FIFA 17-19 are Frostbite D3D11 native. FIFA 20-22 are Frostbite DX12 default with a DX11 fallback that scripts/launch-fifa.sh forces via Documents/FIFA <year>/fifasetup.ini DIRECTX_SELECT=0. FIFA 23 is Frostbite DX12-only and relies on community offline-EAAC-bypass cracks (SteamRIP / Online-Fix). DXVK off so D3DMetal handles D3D9/11/12 directly. nvapi/nvapi64 disabled via empty-value override (the literal token 'disabled' is NOT in wine's grammar). Source must be standalone (no EA App / Origin); FitGirl / DODI repacks blocked by the cls-*.dll codec deadlock on wine-on-Mac.",
+      "description": "Ten FIFA titles spanning three engines, one runtime profile. FIFA 14 is Impact + D3D9 (routed through D3DMetal's D3D9 path same as NFS:MW). FIFA 15-16 are Ignite + D3D11. FIFA 17-19 are Frostbite D3D11 native. FIFA 20-22 are Frostbite DX12 default with a DX11 fallback that scripts/launch-fifa.sh forces via Documents/FIFA <year>/fifasetup.ini DIRECTX_SELECT=0. FIFA 23 is Frostbite DX12-only and relies on community offline-EAAC-bypass cracks (community pre-installed cracked builds). DXVK off so D3DMetal handles D3D9/11/12 directly. nvapi/nvapi64 disabled via empty-value override (the literal token 'disabled' is NOT in wine's grammar). Source must be standalone (no EA App / Origin); FitGirl / DODI repacks blocked by the cls-*.dll codec deadlock on wine-on-Mac.",
       "settings": {
         "dxvk": false,
         "esync": false,
@@ -105,7 +105,7 @@
       "id": "rage-rockstar",
       "name": "Rockstar RAGE engine",
       "match_name_contains": ["gta v", "gta 5", "grand theft auto v", "gta iv", "gta 4", "grand theft auto iv", "red dead redemption 2", "rdr2", "max payne 3"],
-      "description": "Rockstar Advanced Game Engine. GTA V supports D3D11 and DX10.1 (we route D3D11 via D3DMetal). GTA IV needs the xlive.dll bypass for Games for Windows Live (most cracked builds ship it). RDR2 supports DX12 and Vulkan, selected via the `-sgadriver=Vulkan` command-line flag (NOT bare `-vulkan`); the Vulkan path via MoltenVK has historically been more stable than DX12-via-D3DMetal. Online (GTA Online, RDR Online) is a hard block: Take-Two has banned wine sessions. Use standalone / pre-cracked builds (SteamRIP, Online-Fix) to skip Rockstar Games Launcher. Disabling socialclub.dll via WINEDLLOVERRIDES does NOT bypass RGL; socialclub.dll is part of the integrity-check path and removing it breaks startup. Real bypass options: (a) the No_GTAVLauncher exe replacement, (b) the ExeIntegrityBypassAgainstRGL.asi plugin, or (c) a cracked build that ships its own pre-patched GTA5.exe.",
+      "description": "Rockstar Advanced Game Engine. GTA V supports D3D11 and DX10.1 (we route D3D11 via D3DMetal). GTA IV needs the xlive.dll bypass for Games for Windows Live (most cracked builds ship it). RDR2 supports DX12 and Vulkan, selected via the `-sgadriver=Vulkan` command-line flag (NOT bare `-vulkan`); the Vulkan path via MoltenVK has historically been more stable than DX12-via-D3DMetal. Online (GTA Online, RDR Online) is a hard block: Take-Two has banned wine sessions. Use community-maintained cracked releases to skip Rockstar Games Launcher. Disabling socialclub.dll via WINEDLLOVERRIDES does NOT bypass RGL; socialclub.dll is part of the integrity-check path and removing it breaks startup. Real bypass options: (a) the No_GTAVLauncher exe replacement, (b) the ExeIntegrityBypassAgainstRGL.asi plugin, or (c) a cracked build that ships its own pre-patched GTA5.exe.",
       "settings": {
         "dxvk": false,
         "esync": false,
@@ -203,7 +203,7 @@
       "id": "anvilnext-ubisoft",
       "name": "Ubisoft AnvilNext / Disrupt / Dunia",
       "match_name_contains": ["assassin's creed origins", "assassin's creed odyssey", "assassin's creed valhalla", "assassin's creed black flag", "ac origins", "ac odyssey", "ac valhalla", "far cry 5", "far cry 6", "watch dogs legion", "watch dogs 2", "the division 2"],
-      "description": "Ubisoft engine titles (AnvilNext for AC, Dunia for Far Cry, Disrupt for Watch Dogs). DX11 default on most; AC Valhalla and AC Mirage default DX12. Online anti-cheat (The Division 2's BattlEye) blocks online play; single-player works. Ubisoft Connect bypass: cracked builds (acidicoala's UplayR1Unlocker, SkidrowReloaded, CODEX) ship a REPLACEMENT uplay_r1_loader.dll alongside the game exe that stubs auth and returns success. An empty WINEDLLOVERRIDES override for uplay_r1_loader would just make LoadLibrary fail and abort the game; the correct mechanism is to ensure the unlocker DLL is present in the game dir, not to override anything in env.",
+      "description": "Ubisoft engine titles (AnvilNext for AC, Dunia for Far Cry, Disrupt for Watch Dogs). DX11 default on most; AC Valhalla and AC Mirage default DX12. Online anti-cheat (The Division 2's BattlEye) blocks online play; single-player works. Ubisoft Connect bypass: cracked builds (UplayR1Unlocker-style replacement DLLs) ship a REPLACEMENT uplay_r1_loader.dll alongside the game exe that stubs auth and returns success. An empty WINEDLLOVERRIDES override for uplay_r1_loader would just make LoadLibrary fail and abort the game; the correct mechanism is to ensure the unlocker DLL is present in the game dir, not to override anything in env.",
       "settings": {
         "dxvk": false,
         "esync": false,
@@ -307,7 +307,7 @@
       "id": "pes-foxengine",
       "name": "PES Fox Engine / eFootball",
       "match_name_contains": ["pes 2021", "pes 2020", "pes 2019", "pro evolution soccer 2021", "efootball 2024", "efootball 2025", "efootball"],
-      "description": "Konami's PES (Fox Engine through 2021) and eFootball (Unreal Engine 4 from 2022+). PES 2021 is DX11 native and the easiest to get running. eFootball uses UE4 and follows the unreal-engine-4-5 recipe more closely. No anti-cheat for offline modes; online needs Konami's launcher which is the blocker. Use SteamRIP-style standalone builds.",
+      "description": "Konami's PES (Fox Engine through 2021) and eFootball (Unreal Engine 4 from 2022+). PES 2021 is DX11 native and the easiest to get running. eFootball uses UE4 and follows the unreal-engine-4-5 recipe more closely. No anti-cheat for offline modes; online needs Konami's launcher which is the blocker. Use community pre-installed standalone builds.",
       "settings": {
         "dxvk": false,
         "esync": false,

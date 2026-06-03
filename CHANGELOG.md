@@ -181,8 +181,8 @@ settings; fixing them before the first test boot.
    description.
 
 5. **Ubisoft `uplay_r1_loader,uplay_r1_loader64=` empty override is
-   wrong mechanism.** Acidicoala's UplayR1Unlocker (and SkidrowReloaded
-   / CODEX style cracks) ship a *replacement* uplay_r1_loader.dll
+   wrong mechanism.** Acidicoala's UplayR1Unlocker (and
+   / style cracks) ship a *replacement* uplay_r1_loader.dll
    alongside the game exe. An empty override would make LoadLibrary
    return NULL and the game would treat that as a fatal init error.
    Removed the override from `anvilnext-ubisoft` and documented that
@@ -358,15 +358,15 @@ three engines (Impact, Ignite, Frostbite) and three graphics APIs
 Every FIFA build must be standalone (no EA App / Origin / EA Desktop)
 and **must not be a FitGirl or DODI repack**. The `cls-*.dll`
 shared-memory IPC deadlock from cellar v0.2 still blocks the
-lollypop/lolzi/lolzx codec chain on wine 11 + macOS 15. SteamRIP and
-Online-Fix pre-installed builds skip both the EA launcher and the
+lollypop/lolzi/lolzx codec chain on wine 11 + macOS 15. community pre-installed build and
+community-bypass build pre-installed builds skip both the EA launcher and the
 proprietary codec chain, so they are the only viable sources here.
 
 #### FIFA 23 specifically
 
 Retail FIFA 23 ships EA AntiCheat (kernel-mode, no wine support).
 Community releases bypass it at the user-mode handshake level (the
-scene release is MKDEV's crack, redistributed via DODI Repacks and
+scene release is the community offline-bypass crack, redistributed via DODI Repacks and
 similar), shipping a "fake anti cheat" folder that sidesteps the
 EAAC handshake without touching the kernel driver. Offline /
 Career / Kick Off / skill games work after the bypass; online modes
@@ -624,7 +624,7 @@ preferred — the auto-download only fires when nothing is staged.
 ### Field findings — CarX Street v1.6 -> v1.11 swap
 
 Swapped the bottle's game payload from the v1.6 FitGirl repack
-(April 2025) to the v1.11 SteamRIP RUNE pre-install (March 2026).
+(April 2025) to the v1.11 cracked pre-install (RUNE-style stub) pre-install (March 2026).
 The hybrid runtime stack (cellar wine 11.8 + Whisky D3DMetal +
 Proton WinRT DLLs) was unchanged; the bottle ran v1.11 end-to-end
 on Mac mini M4 after a fresh prefix rebuild.
@@ -709,7 +709,7 @@ assistants suggested was hallucinated).
 
 #### Final working stack
 
-- Game payload: CarX Street v1.11.0 SteamRIP/RUNE.
+- Game payload: CarX Street v1.11.0 cracked pre-install (RUNE-style stub).
 - Bottle: `~/.cellar/bottles/carxstreet-hybrid/` (clean Win10 prefix,
   Proton WinRT DLLs staged, MF codecs via winetricks earlier).
 - **Wine**: CrossOver 26.1.0's `lib/wine/x86_64-unix/wine` (wine 11.0

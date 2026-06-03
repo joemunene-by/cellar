@@ -14,7 +14,7 @@
 # FIFA 23 caveats:
 #   - The retail build ships EA AntiCheat (kernel-mode, no wine support).
 #     This launcher relies on the community offline-EAAC-bypass cracks
-#     (SteamRIP / Online-Fix builds that strip EAAC entirely). For online
+#     (community pre-installed cracked builds that strip EAAC entirely). For online
 #     play EAAC is still a hard wall.
 #   - FIFA 23 is D3D12-only (no DX11 fallback in fifa_setup). Frostbite's
 #     DX12 path uses bindless + min16float shaders, same class of shader
@@ -165,7 +165,7 @@ esac
 # time, rather than hard-coding casing.
 if [ ! -d "$GAME_DIR" ]; then
   echo "ERROR: game dir not found: $GAME_DIR" | tee -a "$LOG" >&2
-  echo "place a SteamRIP / Online-Fix-style standalone build (no Origin / EA App) at:" >&2
+  echo "place a standalone cracked build (no Origin / EA App launcher) (no Origin / EA App) at:" >&2
   echo "  $GAME_DIR/" >&2
   exit 3
 fi

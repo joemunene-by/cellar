@@ -496,7 +496,7 @@ Per-version status:
 | FIFA 23 | Frostbite | D3D12 only | EAAC kernel-mode (retail) | experimental, see below |
 
 FIFA 23 retail ships EA AntiCheat which has no wine support
-(kernel-mode by design). Community SteamRIP / Online-Fix builds
+(kernel-mode by design). Community pre-installed cracked builds
 strip EAAC for offline / career play, which is the only path on
 cellar. With EAAC out of the picture the next risk is Frostbite's
 DX12 path on D3DMetal, same class of bindless + min16float shaders
@@ -508,7 +508,7 @@ Source-selection rule applies across the whole family: every FIFA
 must be standalone (no EA App / Origin / EA Desktop) **and** must
 not be a FitGirl or DODI repack. The `cls-*.dll` shared-memory
 IPC deadlock documented below blocks the lollypop / lolzi / lolzx
-codec chain on wine 11 + macOS 15. SteamRIP and Online-Fix pre-
+codec chain on wine 11 + macOS 15. community pre-installed build and community-bypass build pre-
 installed builds skip both the EA launcher and the proprietary
 codec chain, so they are the only viable sources here.
 
