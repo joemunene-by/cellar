@@ -2,6 +2,65 @@
 
 ## Unreleased
 
+### Added — doctor, save-game backup, log viewer, dedicated RDR2 + Bethesda launchers
+
+Five quality-of-life additions plus a launch-engine.sh extension that
+lets dedicated wrappers customize what the generic launcher does.
+
+- **`scripts/cellar-doctor.sh`** — one-shot read-only health check.
+  Walks every prereq cellar's runtime expects: Rosetta 2 (daemon or
+  installed), CrossOver.app at `~/.cellar/runtime/`, wine binary and
+  wineserver under `lib/wine/x86_64-unix/`, D3DMetal.framework under
+  `lib64/apple_gptk/external/` plus its `CFBundleShortVersionString`,
+  `jq` / `winetricks` / `cabextract` on PATH, optional Homebrew
+  `gstreamer` / `gst-libav` (CarX-style Media Foundation), profile
+  set valid via `validate-profiles.sh`, and `~/.cellar/bottles` +
+  `~/Games-source` existence. Reports `[OK]`, `[WARN]`, `[FAIL]`
+  per check; exits non-zero on any FAIL. Read-only by design — no
+  fixes — so it's safe to run from CI or pre-launch.
+
+- **`scripts/backup-saves.sh <bottle>`** — snapshots a bottle's save
+  state. Tars `Documents/`, `AppData/Local/`, `AppData/Roaming/`,
+  and `AppData/LocalLow/` under the prefix's emulated user dir,
+  gzips, drops at `~/.cellar/backups/<bottle>/<timestamp>.tar.gz`.
+  Excludes transient files (`Cache/*`, `Temp/*`, `*.log`, `*.dmp`,
+  CrashReport* etc.). `--list` enumerates available bottles.
+  Never deletes old backups; retention is on the user.
+
+- **`scripts/cellar-logs.sh`** — quick browser for `/tmp/*.log`
+  files matching cellar's launcher prefixes (`cellar-*.log`,
+  `fifa*.log`, `carxstreet*.log`, `nfsmw*.log`, `rdr2*.log`,
+  `skyrim*.log`). Bare invocation lists logs sorted by mtime newest-
+  first, with an index column. Pass a numeric index OR a substring
+  of the basename to `tail -f` the matching log. `cellar-logs.sh
+  open <name>` opens it in TextEdit. `cellar-logs.sh prune` deletes
+  logs older than 7 days.
+
+- **`scripts/launch-rdr2.sh`** — thin RDR2 wrapper around
+  `launch-engine.sh`. Passes `-sgadriver=Vulkan` (the correct flag
+  per PCGamingWiki, NOT bare `-vulkan`) to route through MoltenVK
+  instead of DX12-via-D3DMetal. RDR2's Vulkan path has historically
+  been more stable on Linux Proton.
+
+- **`scripts/launch-bethesda.sh`** — Bethesda wrapper with SKSE /
+  F4SE / NVSE / FOSE / OBSE auto-detect. Walks the game dir (up to
+  depth 2) looking for a script extender loader; if found, passes
+  it as `--exe` to `launch-engine.sh` so the game launches via the
+  extender's address-space hook instead of the bare exe. Mods that
+  depend on the extender ABI then load normally. Set
+  `CELLAR_NO_SKSE=1` to bypass the auto-detect.
+
+To enable the wrappers, `scripts/launch-engine.sh` now accepts:
+
+- `--exe NAME` flag: skip auto-resolution, use this exe (relative
+  to game dir). Used by `launch-bethesda.sh` to point at the SKSE
+  loader.
+- Positional args after `<game-dir>`: appended to
+  `profile.settings.launch_args` and forwarded to the game exe.
+  Used by `launch-rdr2.sh` to add `-sgadriver=Vulkan` without
+  baking it into the shared `rage-rockstar` profile (which would
+  apply to GTA V / IV / Max Payne 3 too).
+
 ### Added — profile validator + generic app wrapper + UE exe-depth fix
 
 Three small additions that harden the engine-family path:

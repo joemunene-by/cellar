@@ -28,8 +28,28 @@ set -u
 CELLAR_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROFILES="$CELLAR_ROOT/profiles.json"
 
+# Optional flags before the positional args:
+#   --exe NAME  -- skip auto-resolution, launch this exe (relative to game dir)
+# Anything after <profile-id> <game-dir> becomes extra args passed to the game,
+# concatenated with profile.settings.launch_args.
+EXPLICIT_EXE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --exe) EXPLICIT_EXE="${2:?--exe needs a value}"; shift 2 ;;
+    --) shift; break ;;
+    -h|--help)
+      echo "usage: $0 [--exe NAME] <profile-id> <game-dir> [game-args ...]" >&2
+      exit 0
+      ;;
+    -*) echo "unknown flag: $1" >&2; exit 1 ;;
+    *) break ;;
+  esac
+done
+
 PROFILE="${1:?profile id required (see profiles.json for valid ids)}"
 GAME="${2:?game dir name required (relative to ~/Games-source/)}"
+shift 2
+EXTRA_GAME_ARGS=("$@")
 
 # Precheck tooling.
 if ! command -v jq >/dev/null 2>&1; then
@@ -190,6 +210,15 @@ if [ ! -d "$GAME_DIR" ]; then
   exit 3
 fi
 RESOLVED_EXE=""
+if [ -n "$EXPLICIT_EXE" ]; then
+  if [ -f "$GAME_DIR/$EXPLICIT_EXE" ]; then
+    RESOLVED_EXE="$EXPLICIT_EXE"
+    echo "explicit exe: $RESOLVED_EXE" >> "$LOG"
+  else
+    echo "ERROR: --exe $EXPLICIT_EXE not found under $GAME_DIR" | tee -a "$LOG" >&2
+    exit 4
+  fi
+fi
 # Search strategy: prefer exes that look like the game name at the top of the
 # dir, then fall through to deeper Unreal-style Binaries/Win64/* paths
 # (Elden Ring, Hogwarts, Dark Souls etc. all keep their real exe there with
@@ -200,27 +229,29 @@ skip_re='(^|/)(Uu?[Nn][Ii][Nn][Ss][Tt][Aa][Ll][Ll]|[Cc]rash[Hh]andler|[Cc]rash[R
 # launcher there. UE Shipping exes live at depth 3 (Binaries/Win64/foo.exe).
 # DXVK / Goldberg loaders at deeper paths aren't game binaries; we cap at
 # depth 4 and skip the helper names regex above.
-candidates=()
-while IFS= read -r f; do
-  case "$f" in *$'\n'*) continue ;; esac
-  candidates+=("$f")
-done < <(
-  cd "$GAME_DIR" && {
-    find . -maxdepth 1 -iname "${GAME_SLUG}*.exe" 2>/dev/null
-    find . -maxdepth 1 -iname "${slug_nosep}*.exe" 2>/dev/null
-    find . -maxdepth 1 -iname "*.exe" 2>/dev/null
-    find . -maxdepth 4 -ipath "*/Binaries/Win64/*.exe" 2>/dev/null
-    find . -maxdepth 4 -ipath "*/Binaries/Win32/*.exe" 2>/dev/null
-    find . -maxdepth 4 -ipath "*/Bin64/*.exe" 2>/dev/null
-    find . -maxdepth 4 -ipath "*/bin/*.exe" 2>/dev/null
-  } | awk '!seen[$0]++'
-)
-for f in "${candidates[@]}"; do
-  base=$(basename "$f")
-  if [[ "$f" =~ $skip_re ]]; then continue; fi
-  RESOLVED_EXE="${f#./}"
-  break
-done
+if [ -z "$RESOLVED_EXE" ]; then
+  candidates=()
+  while IFS= read -r f; do
+    case "$f" in *$'\n'*) continue ;; esac
+    candidates+=("$f")
+  done < <(
+    cd "$GAME_DIR" && {
+      find . -maxdepth 1 -iname "${GAME_SLUG}*.exe" 2>/dev/null
+      find . -maxdepth 1 -iname "${slug_nosep}*.exe" 2>/dev/null
+      find . -maxdepth 1 -iname "*.exe" 2>/dev/null
+      find . -maxdepth 4 -ipath "*/Binaries/Win64/*.exe" 2>/dev/null
+      find . -maxdepth 4 -ipath "*/Binaries/Win32/*.exe" 2>/dev/null
+      find . -maxdepth 4 -ipath "*/Bin64/*.exe" 2>/dev/null
+      find . -maxdepth 4 -ipath "*/bin/*.exe" 2>/dev/null
+    } | awk '!seen[$0]++'
+  )
+  for f in "${candidates[@]}"; do
+    base=$(basename "$f")
+    if [[ "$f" =~ $skip_re ]]; then continue; fi
+    RESOLVED_EXE="${f#./}"
+    break
+  done
+fi
 if [ -z "$RESOLVED_EXE" ]; then
   echo "ERROR: no game exe found in $GAME_DIR" | tee -a "$LOG" >&2
   echo "expected something like ${GAME_SLUG}.exe at the top of the dir," >&2
@@ -239,9 +270,13 @@ done < <(jq -r '.[]' <<< "$LAUNCH_ARGS_JSON")
 
 cd "$GAME_DIR"
 echo "===== game output =====" >> "$LOG"
+# Combined args: profile launch_args first, then any extra positional args
+# the caller passed after <game-dir> (e.g. -sgadriver=Vulkan from launch-rdr2.sh).
+all_args=("${launch_args[@]}" "${EXTRA_GAME_ARGS[@]}")
+echo "game args: ${all_args[*]:-(none)}" >> "$LOG"
 env "${env_base[@]}" \
   WINEDEBUG=err+all,fixme-all \
-  "$WINE" "./$RESOLVED_EXE" "${launch_args[@]}" >> "$LOG" 2>&1 &
+  "$WINE" "./$RESOLVED_EXE" "${all_args[@]}" >> "$LOG" 2>&1 &
 
 WPID=$!
 echo "$WPID" > "$PIDFILE"
