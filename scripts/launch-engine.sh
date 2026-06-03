@@ -107,9 +107,32 @@ echo "bottle: $BOTTLE" >> "$LOG"
 echo "game dir: $GAME_DIR" >> "$LOG"
 
 # Base env shared with the dedicated launchers (CrossOver wine + apple_gptk D3DMetal 3.0).
+# Per-bottle D3DMetal pin via scripts/d3dmetal-switch.sh: if the bottle has a
+# d3dmetal-version file, resolve the DYLD_FRAMEWORK_PATH to the framework
+# directory matching that version instead of the runtime default.
+DYLD_FW_PATH="$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/lib64/apple_gptk/external"
+PIN_FILE="$HOME/.cellar/bottles/$BOTTLE/d3dmetal-version"
+if [ -f "$PIN_FILE" ]; then
+  pinned_version=$(cat "$PIN_FILE" 2>/dev/null)
+  for cand in \
+      "$HOME/.cellar/d3dmetal/$pinned_version" \
+      "$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/lib64/apple_gptk/external" \
+      "$HOME/Library/Application Support/com.isaacmarovitz.Whisky/Libraries/Wine/lib/external"; do
+    if [ -f "$cand/D3DMetal.framework/Resources/Info.plist" ]; then
+      v=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
+          "$cand/D3DMetal.framework/Resources/Info.plist" 2>/dev/null || echo "")
+      if [ "$v" = "$pinned_version" ]; then
+        DYLD_FW_PATH="$cand"
+        echo "using pinned D3DMetal $pinned_version from $cand" >> "$LOG"
+        break
+      fi
+    fi
+  done
+fi
+
 env_base=(
   "WINEPREFIX=$PREFIX"
-  "DYLD_FRAMEWORK_PATH=$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver/lib64/apple_gptk/external"
+  "DYLD_FRAMEWORK_PATH=$DYLD_FW_PATH"
   "CX_ROOT=$HOME/.cellar/runtime/CrossOver.app/Contents/SharedSupport/CrossOver"
   "DYLD_LIBRARY_PATH=/opt/homebrew/lib"
   "WINEESYNC=0"

@@ -2,6 +2,77 @@
 
 ## Unreleased
 
+### Added — crash report, Games-source watcher, D3DMetal switcher, 4 more dedicated launchers
+
+Post-v0.1.0 push. Three operational tools plus four engine-specific
+launcher wrappers, all built on top of the launch-engine.sh foundation.
+
+- **`scripts/crash-report.sh`** — bundle everything an issue triager
+  would ask for. Auto-picks the most recent failed launcher log if
+  not given a bottle name. Collects: tail of launcher log (last 500
+  lines), `analyze-log.sh` hit report, `bottle-inspect.sh` output,
+  `cellar-doctor.sh` output, host metadata (macOS / arch / model /
+  wine version / cellar git rev), and the matching profile JSON. Zips
+  to `/tmp/cellar-crash-<bottle>-<timestamp>.zip` with the GitHub
+  bug-report URL pre-printed.
+
+- **`scripts/watch-games.sh`** — fswatch daemon for `~/Games-source/`.
+  When a new top-level directory appears, runs `find-profile.sh`
+  against the name and posts a macOS notification with the suggested
+  `cellar-install.sh` command pre-baked. State persisted at
+  `~/.cellar/watch-state.txt` so restarts don't re-notify on known
+  dirs. `--once` mode for cron-style sweeps without daemonization.
+  Foreground by default; users wrap as a launchd plist for background
+  operation.
+
+- **`scripts/d3dmetal-switch.sh`** — pin a specific D3DMetal.framework
+  version to a bottle. Writes `~/.cellar/bottles/<bottle>/d3dmetal-version`
+  with the chosen version string. `launch-engine.sh` now reads that
+  file on launch and adjusts `DYLD_FRAMEWORK_PATH` to point at the
+  framework directory matching that version, falling back to the
+  runtime default if the pinned version isn't available. Sources
+  checked in order: `~/.cellar/d3dmetal/<version>/`, CrossOver bundle,
+  Whisky archive. `--list` enumerates available versions.
+
+Four new dedicated launchers, all thin wrappers around the generic
+`launch-engine.sh`:
+
+- **`scripts/launch-re-engine.sh <dir> [--api dx11|dx12]`** — Capcom
+  RE Engine. Defaults to `-dx11` because D3D11→D3DMetal has fewer
+  regressions than DX12→D3DMetal across the RE family. RE Village
+  ignores the flag (config-only); the wrapper documents that.
+
+- **`scripts/launch-anvilnext.sh <dir>`** — Ubisoft AnvilNext / Dunia
+  / Disrupt. Sanity-checks that `uplay_r1_loader*.dll` is present in
+  the game dir before launching (cracked builds ship the unlocker as
+  a replacement DLL; without it, the game aborts with a confusing
+  "Ubisoft Connect not installed" error). `CELLAR_NO_UPLAY_CHECK=1`
+  bypasses.
+
+- **`scripts/launch-redengine.sh <dir>`** — CDPR REDengine. For
+  Cyberpunk 2077 specifically, prints a shader-compile heads-up
+  before launch (first run does a 5-15 minute compile pass with no
+  UI feedback). `CELLAR_CP77_SHADER_HINT=0` suppresses.
+
+- **`scripts/launch-forzatech.sh <dir>`** — Forza Horizon 4/5. Checks
+  for `AppxManifest.xml` and refuses to launch if found, because UWP
+  Forza on wine is broken in ways no launcher recipe currently
+  solves. Steam build only. `CELLAR_FORCE_UWP=1` overrides.
+
+- **`scripts/launch-pes.sh <dir>`** — PES / eFootball. Routes to
+  `pes-foxengine` profile for PES 2019-2021 (Fox Engine) and to
+  `unreal-engine-4-5` for eFootball 2024+ (UE4) based on substring
+  match in the game-dir name.
+
+After this batch, eight of the ten non-fallback engine families have
+dedicated launchers (`launch-fifa.sh`, `launch-rdr2.sh`,
+`launch-bethesda.sh`, `launch-re-engine.sh`, `launch-anvilnext.sh`,
+`launch-redengine.sh`, `launch-forzatech.sh`, `launch-pes.sh`); the
+remaining two (`frostbite-multi` for non-FIFA Frostbite, `d3d9-classic`
+for GTA trilogy) go through `launch-engine.sh` directly since they
+don't need engine-specific tweaks. Validator still green: 14 profiles,
+no failures, no warnings.
+
 ### Added — proactive install, log analyzer, bottle inspector, profile finder, Metal HUD
 
 Five more user-loop additions plus two env-var toggles on the
