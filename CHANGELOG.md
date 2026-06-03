@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### Added — profile validator + generic app wrapper + UE exe-depth fix
+
+Three small additions that harden the engine-family path:
+
+- **`scripts/validate-profiles.sh`** — sanity-checker for
+  `profiles.json` that catches the bug class surfaced in this
+  session's audit (WINEDLLOVERRIDES tokens outside wine's grammar,
+  unknown winetricks verbs, missing required fields, launch_args
+  flags that don't apply to the matched titles, e.g. `-dx11` on
+  Elden Ring). Exit non-zero on failures so it can be wired to CI
+  or a pre-commit hook. Uses `jq has()` for key existence so boolean
+  `false` values (`dxvk: false`) don't trip false positives. Current
+  state: all 14 profiles pass cleanly.
+
+- **`scripts/make-cellar-app.sh`** — generic wrapper that turns any
+  `launch-engine.sh <profile-id> <game-dir>` invocation into a
+  clickable `/Applications/cellar Games/<name>.app` bundle. Same
+  pattern as `make-fifa-apps.sh` but profile-driven, so adding an
+  app for any of the ten engine families is a one-liner.
+
+- **UE exe-depth fix in `launch-engine.sh`** — previously the
+  launcher only searched depth 1 for the game exe, which would fail
+  on every UE4 / UE5 title (Elden Ring, Hogwarts Legacy, Dark Souls
+  III all keep `<Game>-Win64-Shipping.exe` under
+  `<GameDir>/<Game>/Binaries/Win64/`, with at most a small launcher
+  exe at the top). Resolver now walks up to depth 4, prefers
+  matches on the game slug at the top, then falls through to
+  `Binaries/Win64/`, `Binaries/Win32/`, `Bin64/`, and `bin/`. Skips
+  uninstaller / crash-handler / setup / RGL / EAAntiCheat /
+  Goldberg-loader helper exes via a regex on the path.
+
 ### Fixed — eight factual / code bugs in the engine-family profiles
 
 Audit pass on the just-shipped engine-family profiles surfaced eight

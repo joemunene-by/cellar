@@ -190,22 +190,41 @@ if [ ! -d "$GAME_DIR" ]; then
   exit 3
 fi
 RESOLVED_EXE=""
-# Try a few common candidate patterns: the slug, the slug with no separators,
-# stripped down further. Stop at the first hit.
+# Search strategy: prefer exes that look like the game name at the top of the
+# dir, then fall through to deeper Unreal-style Binaries/Win64/* paths
+# (Elden Ring, Hogwarts, Dark Souls etc. all keep their real exe there with
+# a launcher at the top). Skip uninstaller / crash-handler / setup helpers.
 slug_nosep=$(echo "$GAME_SLUG" | tr -d '-')
-for pat in "$GAME_SLUG*.exe" "$slug_nosep*.exe" "*.exe"; do
-  while IFS= read -r f; do
-    base=$(basename "$f")
-    case "$base" in
-      *[Uu]ninstall*|*[Cc]rash[Hh]andler*|*[Ss]etup*|*[Cc]onfig*|*[Bb]enchmark*|*[Ll]auncher*) continue ;;
-    esac
-    RESOLVED_EXE="$base"
-    break 2
-  done < <(cd "$GAME_DIR" && find . -maxdepth 1 -iname "$pat" 2>/dev/null | sort)
+skip_re='(^|/)(Uu?[Nn][Ii][Nn][Ss][Tt][Aa][Ll][Ll]|[Cc]rash[Hh]andler|[Cc]rash[Rr]eport|UnityCrashHandler|EAAntiCheat|EALaunchHelper|[Ss]etup|[Cc]onfig|[Bb]enchmark|RGL|[Ll]auncher|[Pp]rerequisite|vc_redist)'
+# Pattern × depth matrix. Top-of-dir first because most games keep the
+# launcher there. UE Shipping exes live at depth 3 (Binaries/Win64/foo.exe).
+# DXVK / Goldberg loaders at deeper paths aren't game binaries; we cap at
+# depth 4 and skip the helper names regex above.
+candidates=()
+while IFS= read -r f; do
+  case "$f" in *$'\n'*) continue ;; esac
+  candidates+=("$f")
+done < <(
+  cd "$GAME_DIR" && {
+    find . -maxdepth 1 -iname "${GAME_SLUG}*.exe" 2>/dev/null
+    find . -maxdepth 1 -iname "${slug_nosep}*.exe" 2>/dev/null
+    find . -maxdepth 1 -iname "*.exe" 2>/dev/null
+    find . -maxdepth 4 -ipath "*/Binaries/Win64/*.exe" 2>/dev/null
+    find . -maxdepth 4 -ipath "*/Binaries/Win32/*.exe" 2>/dev/null
+    find . -maxdepth 4 -ipath "*/Bin64/*.exe" 2>/dev/null
+    find . -maxdepth 4 -ipath "*/bin/*.exe" 2>/dev/null
+  } | awk '!seen[$0]++'
+)
+for f in "${candidates[@]}"; do
+  base=$(basename "$f")
+  if [[ "$f" =~ $skip_re ]]; then continue; fi
+  RESOLVED_EXE="${f#./}"
+  break
 done
 if [ -z "$RESOLVED_EXE" ]; then
   echo "ERROR: no game exe found in $GAME_DIR" | tee -a "$LOG" >&2
-  echo "expected something like ${GAME_SLUG}.exe at the top of the dir" >&2
+  echo "expected something like ${GAME_SLUG}.exe at the top of the dir," >&2
+  echo "or <Game>-Win64-Shipping.exe under Binaries/Win64/ for UE titles" >&2
   ls "$GAME_DIR" >&2 || true
   exit 4
 fi
