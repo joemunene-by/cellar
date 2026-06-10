@@ -18,7 +18,7 @@ jobs:
     name: build cellar.app on macOS
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: install rust toolchain
         uses: dtolnay/rust-toolchain@stable

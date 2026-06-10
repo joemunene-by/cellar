@@ -11,7 +11,7 @@ jobs:
     name: validate profiles.json
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: install jq
         run: sudo apt-get update -y && sudo apt-get install -y jq
       - name: run profile validator
@@ -21,7 +21,7 @@ jobs:
     name: bash syntax check on launcher scripts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: bash -n every shell script under scripts/
         run: |
           failed=0
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: install shellcheck
         run: sudo apt-get update -y && sudo apt-get install -y shellcheck
       - name: run shellcheck
