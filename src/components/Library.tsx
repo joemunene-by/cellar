@@ -12,8 +12,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import { library, prereq, profiles, runtime, isCellarError } from '../lib/invoke';
-import type { Game, GameSettings, PrereqDone, Profile } from '../lib/invoke';
+import { library, prereq, profiles, runtime, tools, d3dmetal, isCellarError } from '../lib/invoke';
+import type { CrashReport, Game, GameSettings, PrereqDone, Profile } from '../lib/invoke';
 
 export default function Library() {
   const [games, setGames] = useState<Game[] | null>(null);
@@ -264,6 +264,75 @@ function SettingsDrawer({
   // before kicking off the loop.
   const [initialChecksDone, setInitialChecksDone] = useState(false);
   const autoSetupFiredRef = useRef(false);
+
+  // Diagnostics section state: D3DMetal pin, bottle inspect, crash report.
+  const [d3dList, setD3dList] = useState<string[]>([]);
+  const [d3dPinned, setD3dPinned] = useState<string>('default');
+  const [d3dSaving, setD3dSaving] = useState(false);
+  const [inspectText, setInspectText] = useState<string | null>(null);
+  const [inspectBusy, setInspectBusy] = useState(false);
+  const [crash, setCrash] = useState<CrashReport | null>(null);
+  const [crashBusy, setCrashBusy] = useState(false);
+  const [diagError, setDiagError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [list, pinned] = await Promise.all([
+          d3dmetal.list(),
+          d3dmetal.get(game.bottle_id),
+        ]);
+        if (!mounted) return;
+        setD3dList(list.length ? list : ['default']);
+        setD3dPinned(pinned ?? 'default');
+      } catch {
+        // Diagnostics are best-effort; leave defaults.
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [game.bottle_id]);
+
+  const changeD3dmetal = async (version: string) => {
+    setD3dSaving(true);
+    setDiagError(null);
+    const prev = d3dPinned;
+    setD3dPinned(version);
+    try {
+      await d3dmetal.set(game.bottle_id, version);
+    } catch (err) {
+      setD3dPinned(prev);
+      setDiagError(formatErr(err));
+    } finally {
+      setD3dSaving(false);
+    }
+  };
+
+  const runInspect = async () => {
+    setInspectBusy(true);
+    setDiagError(null);
+    try {
+      setInspectText(await tools.bottleInspect(game.bottle_id));
+    } catch (err) {
+      setDiagError(formatErr(err));
+    } finally {
+      setInspectBusy(false);
+    }
+  };
+
+  const runCrashReport = async () => {
+    setCrashBusy(true);
+    setDiagError(null);
+    try {
+      setCrash(await tools.crashReport(game.bottle_id));
+    } catch (err) {
+      setDiagError(formatErr(err));
+    } finally {
+      setCrashBusy(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -644,6 +713,65 @@ function SettingsDrawer({
               <tr><td>Bottle</td><td><code>{game.bottle_id}</code></td></tr>
             </tbody>
           </table>
+        </section>
+
+        <section className="drawer-section">
+          <h4>Diagnostics</h4>
+          {diagError && <div className="error-box">{diagError}</div>}
+
+          <div className="diag-row">
+            <label className="diag-label" htmlFor="d3dmetal-pin">
+              D3DMetal version
+              <span className="muted"> (per-bottle pin; “default” uses the runtime version)</span>
+            </label>
+            <select
+              id="d3dmetal-pin"
+              className="input"
+              value={d3dPinned}
+              disabled={d3dSaving}
+              onChange={(e) => changeD3dmetal(e.target.value)}
+            >
+              {d3dList.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="diag-actions">
+            <button className="btn" onClick={runInspect} disabled={inspectBusy} type="button">
+              {inspectBusy ? 'Inspecting…' : 'Inspect bottle'}
+            </button>
+            <button className="btn" onClick={runCrashReport} disabled={crashBusy} type="button">
+              {crashBusy ? 'Bundling…' : 'Export crash report'}
+            </button>
+          </div>
+
+          {inspectText !== null && (
+            <pre className="diag-output" aria-label="bottle inspect output">{inspectText}</pre>
+          )}
+
+          {crash && (
+            <div className="diag-crash">
+              {crash.zip_path ? (
+                <p className="muted">
+                  Crash report written to <code>{crash.zip_path}</code>
+                  {' '}
+                  <button
+                    className="btn btn-ghost btn-small"
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(crash.zip_path ?? '')}
+                  >
+                    Copy path
+                  </button>
+                </p>
+              ) : (
+                <p className="muted">Crash report finished (path not detected — see log below).</p>
+              )}
+              <pre className="diag-output">{crash.log}</pre>
+            </div>
+          )}
         </section>
 
         <div className="drawer-actions">

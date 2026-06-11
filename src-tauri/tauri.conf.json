@@ -30,7 +30,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,6 +43,9 @@
     ],
     "category": "Game",
     "shortDescription": "Mac M4 launcher for Windows games",
-    "longDescription": "cellar is a Mac mini M4 launcher for Windows games. Wraps Wine + Apple Game Porting Toolkit + DXVK to run repack installers natively on Apple Silicon."
+    "longDescription": "cellar is a Mac mini M4 launcher for Windows games. Wraps Wine + Apple Game Porting Toolkit + DXVK to run repack installers natively on Apple Silicon.",
+    "resources": {
+      "../scripts": "scripts"
+    }
   }
 }
