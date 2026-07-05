@@ -56,6 +56,12 @@ echo "===== launch $(date) FIFA $VER =====" > "$LOG"
 echo "wine: $WINE ($("$WINE" --version 2>&1))" >> "$LOG"
 echo "game dir: $GAME_DIR" >> "$LOG"
 
+# Free seized input devices (quit Steam so it releases USB controllers).
+if [ -f "$(dirname "$0")/free-input.sh" ]; then
+  . "$(dirname "$0")/free-input.sh"
+  cellar_free_input "$LOG"
+fi
+
 # Base env shared with CarX hybrid (CrossOver wine + apple_gptk D3DMetal 3.0).
 # No DXVK: FIFA 14 is D3D9 (routed through D3DMetal directly); 15-19 are D3D11
 # native; 20/21/22 default DX12 but we force DX11 via fifasetup.ini in each
@@ -78,6 +84,12 @@ env_base=(
   "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=2"
   "MVK_CONFIG_FAST_MATH_ENABLED=1"
 )
+
+# Live FPS/frametime overlay via Apple's Metal HUD. Default from ~/.cellar/fps-hud
+# (set by scripts/fps-hud.sh); CELLAR_METAL_HUD=0/1 overrides per-launch.
+if [ "${CELLAR_METAL_HUD:-$(cat "$HOME/.cellar/fps-hud" 2>/dev/null || echo 1)}" = "1" ]; then
+  env_base+=("MTL_HUD_ENABLED=1")
+fi
 
 if [ ! -d "$PREFIX/drive_c" ]; then
   echo "creating fresh wine prefix for FIFA $VER..." | tee -a "$LOG"

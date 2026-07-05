@@ -72,8 +72,21 @@ cat > "$APP_DIR/Contents/Info.plist" <<EOF
   <false/>
 EOF
 
-if [ -n "$ICON" ] && [ -f "$ICON" ]; then
-  cp "$ICON" "$APP_DIR/Contents/Resources/AppIcon.icns"
+# Resolve the icon: accept a ready-made .icns, OR a game .exe / game dir that we
+# extract the real icon from via extract-icon.sh (needs icoutils).
+ICNS=""
+if [ -n "$ICON" ]; then
+  case "$ICON" in
+    *.icns) [ -f "$ICON" ] && ICNS="$ICON" ;;
+    *)
+      if [ -e "$ICON" ]; then
+        gen="$(mktemp -u).icns"
+        if "$(dirname "$0")/extract-icon.sh" "$ICON" "$gen" 2>/dev/null; then ICNS="$gen"; fi
+      fi ;;
+  esac
+fi
+if [ -n "$ICNS" ] && [ -f "$ICNS" ]; then
+  cp "$ICNS" "$APP_DIR/Contents/Resources/AppIcon.icns"
   cat >> "$APP_DIR/Contents/Info.plist" <<EOF
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>

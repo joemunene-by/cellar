@@ -106,6 +106,12 @@ echo "game: $GAME" >> "$LOG"
 echo "bottle: $BOTTLE" >> "$LOG"
 echo "game dir: $GAME_DIR" >> "$LOG"
 
+# Free seized input devices (quit Steam so it releases USB controllers).
+if [ -f "$CELLAR_ROOT/scripts/free-input.sh" ]; then
+  . "$CELLAR_ROOT/scripts/free-input.sh"
+  cellar_free_input "$LOG"
+fi
+
 # Base env shared with the dedicated launchers (CrossOver wine + apple_gptk D3DMetal 3.0).
 # Per-bottle D3DMetal pin via scripts/d3dmetal-switch.sh: if the bottle has a
 # d3dmetal-version file, resolve the DYLD_FRAMEWORK_PATH to the framework
@@ -139,11 +145,12 @@ env_base=(
 )
 
 # Optional toggles from the launcher's own env (not the profile):
-#   CELLAR_METAL_HUD=1  -> enable Apple's Metal performance HUD overlay
+#   CELLAR_METAL_HUD=0  -> hide Apple's Metal performance HUD overlay (default on)
 #   CELLAR_WINEDEBUG=X  -> override the default WINEDEBUG flags
-if [ "${CELLAR_METAL_HUD:-0}" = "1" ]; then
+# Default comes from ~/.cellar/fps-hud (set via scripts/fps-hud.sh); env overrides.
+if [ "${CELLAR_METAL_HUD:-$(cat "$HOME/.cellar/fps-hud" 2>/dev/null || echo 1)}" = "1" ]; then
   env_base+=("MTL_HUD_ENABLED=1")
-  echo "Metal HUD enabled (CELLAR_METAL_HUD=1)" >> "$LOG"
+  echo "Metal HUD enabled" >> "$LOG"
 fi
 
 # Append profile env on top of the base.
@@ -303,12 +310,14 @@ cd "$GAME_DIR"
 echo "===== game output =====" >> "$LOG"
 # Combined args: profile launch_args first, then any extra positional args
 # the caller passed after <game-dir> (e.g. -sgadriver=Vulkan from launch-rdr2.sh).
-all_args=("${launch_args[@]}" "${EXTRA_GAME_ARGS[@]}")
+# Empty-array-safe under bash 3.2 + set -u (most profiles have no launch_args
+# and most launches pass no extra positional args).
+all_args=(${launch_args[@]+"${launch_args[@]}"} ${EXTRA_GAME_ARGS[@]+"${EXTRA_GAME_ARGS[@]}"})
 echo "game args: ${all_args[*]:-(none)}" >> "$LOG"
 WINEDEBUG_FLAGS="${CELLAR_WINEDEBUG:-err+all,fixme-all}"
 env "${env_base[@]}" \
   WINEDEBUG="$WINEDEBUG_FLAGS" \
-  "$WINE" "./$RESOLVED_EXE" "${all_args[@]}" >> "$LOG" 2>&1 &
+  "$WINE" "./$RESOLVED_EXE" ${all_args[@]+"${all_args[@]}"} >> "$LOG" 2>&1 &
 
 WPID=$!
 echo "$WPID" > "$PIDFILE"
