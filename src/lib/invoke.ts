@@ -191,6 +191,48 @@ export const archive = {
   peek: (path: string) => invoke<ArchivePeek>('archive_peek', { path }),
 };
 
+// ----------------------- Diagnostics (bottle inspect + crash report) -----------------------
+
+export interface CrashReport {
+  /** Absolute path to the generated .zip, or null if not parsed. */
+  zip_path: string | null;
+  /** The crash-report script's full stdout. */
+  log: string;
+}
+
+export const tools = {
+  /** Plain-text bottle report (prefix size, wine version, overrides,
+   *  installed programs, winetricks verbs, save backups, last log). */
+  bottleInspect: (bottleId: string) => invoke<string>('bottle_inspect', { bottleId }),
+  /** Bundle a crash report .zip for a bottle. */
+  crashReport: (bottleId: string) => invoke<CrashReport>('crash_report', { bottleId }),
+};
+
+// ----------------------- D3DMetal per-bottle version pin -----------------------
+
+export const d3dmetal = {
+  /** Version labels the user can pin to: "default" plus any local installs. */
+  list: () => invoke<string[]>('d3dmetal_list'),
+  /** The version pinned for a bottle, or null when it uses the runtime default. */
+  get: (bottleId: string) => invoke<string | null>('d3dmetal_get', { bottleId }),
+  /** Pin a bottle to a version; "default" unpins. */
+  set: (bottleId: string, version: string) =>
+    invoke<void>('d3dmetal_set', { bottleId, version }),
+};
+
+// ----------------------- Games-source watcher event -----------------------
+
+/** Payload of the cellar://game-detected event emitted when a new game
+ *  directory appears under ~/Games-source/. Subscribe via
+ *  @tauri-apps/api/event listen. */
+export interface GameDetected {
+  name: string;
+  path: string;
+  profile_id: string | null;
+  profile_name: string | null;
+  suggested_cmd: string;
+}
+
 /** Best-effort discrimination on the {kind, ...} error shape used by all
  *  cellar backend commands. */
 export function isCellarError(err: unknown): { kind: string; [k: string]: unknown } | null {

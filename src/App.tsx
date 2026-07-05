@@ -3,15 +3,35 @@
  * right pane renders the active tab.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import Library from './components/Library';
 import InstallWizard from './components/InstallWizard';
 import SettingsPane from './components/SettingsPane';
+import type { GameDetected } from './lib/invoke';
 
 type Tab = 'library' | 'install' | 'settings';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('library');
+  // Toasts raised by the ~/Games-source watcher (cellar://game-detected).
+  const [detected, setDetected] = useState<GameDetected[]>([]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<GameDetected>('cellar://game-detected', (e) => {
+      // De-dupe by path in case the watcher double-fires.
+      setDetected((prev) =>
+        prev.some((d) => d.path === e.payload.path) ? prev : [...prev, e.payload],
+      );
+    }).then((u) => {
+      unlisten = u;
+    });
+    return () => unlisten?.();
+  }, []);
+
+  const dismiss = (path: string) =>
+    setDetected((prev) => prev.filter((d) => d.path !== path));
 
   return (
     <div className="app">
@@ -29,6 +49,43 @@ export default function App() {
         {tab === 'install' && <InstallWizard />}
         {tab === 'settings' && <SettingsPane />}
       </main>
+
+      {detected.length > 0 && (
+        <div className="toast-stack">
+          {detected.map((d) => (
+            <div className="toast" key={d.path}>
+              <button
+                className="toast-close"
+                onClick={() => dismiss(d.path)}
+                type="button"
+                title="Dismiss"
+              >
+                ✕
+              </button>
+              <div className="toast-title">New game detected</div>
+              <div className="toast-body">
+                <strong>{d.name}</strong>
+                {d.profile_name ? (
+                  <span> matched profile <strong>{d.profile_name}</strong>.</span>
+                ) : (
+                  <span> — no engine profile matched (pick one manually).</span>
+                )}
+              </div>
+              <div className="toast-cmd">
+                <code>{d.suggested_cmd}</code>
+                <button
+                  className="btn btn-ghost btn-small"
+                  type="button"
+                  onClick={() => navigator.clipboard?.writeText(d.suggested_cmd)}
+                  title="Copy install command"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

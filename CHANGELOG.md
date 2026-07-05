@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### Added — in-app diagnostics, D3DMetal pin, and Games-source watcher
+
+Surfaces existing capability through the Tauri app instead of only the
+CLI. New Rust commands + UI:
+
+- **Inspect bottle** and **Export crash report** in each game's Settings
+  drawer (Diagnostics section). These wrap `scripts/bottle-inspect.sh`
+  and `scripts/crash-report.sh`, which are now bundled into the `.app`
+  as Tauri resources (`tools.rs` resolves the resource dir in a release
+  build, the source tree under `tauri dev`) and run via `bash`, so they
+  work in a distributed build, not just from the repo.
+- **Per-bottle D3DMetal version pin** — a selector in the Diagnostics
+  section writes `~/.cellar/bottles/<id>/d3dmetal-version` (read by
+  `launch-engine.sh`). Implemented natively in `d3dmetal.rs` (no script
+  dependency); "default" unpins.
+- **In-app Games-source watcher** (`watch.rs`, `notify` crate) — a
+  background watch on `~/Games-source/` raises a `cellar://game-detected`
+  toast in the UI when a new game directory appears, showing the matched
+  engine profile and a copy-able install command. Complements the
+  system-level `dev.cellar.watch-games` launchd agent (in-app toast vs
+  desktop notification).
+
+The earlier roadmap item "Tauri frontend wire-up" was already shipped —
+`Library.tsx` calls `profiles_find` and renders matched-profile +
+readiness badges; this adds the remaining Inspect surface plus the three
+features above.
+
 ### Added — `cellar status` + `cellar self-update`
 
 Two more dispatch targets on the CLI for everyday housekeeping.
