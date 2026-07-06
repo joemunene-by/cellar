@@ -32,6 +32,16 @@ fi
 
 mkdir -p "$WRAP_DIR"
 
+# The generated .app is launched by macOS LaunchServices in a TCC-restricted
+# context that CANNOT read ~/Desktop (privacy protection), so a wrapper pointing
+# at ~/Desktop/cellar/scripts fails with "Operation not permitted". Copy the
+# master launcher + its sourced deps into ~/.cellar (TCC-safe) and point wrappers
+# there instead.
+RUNTIME_MASTER="$WRAP_DIR/launch-fifa.sh"
+cp "$MASTER" "$RUNTIME_MASTER"
+cp "$CELLAR_ROOT/scripts/free-input.sh" "$WRAP_DIR/free-input.sh" 2>/dev/null || true
+chmod +x "$RUNTIME_MASTER" "$WRAP_DIR/free-input.sh" 2>/dev/null || true
+
 versions=("$@")
 if [ ${#versions[@]} -eq 0 ]; then
   # auto-detect: any ~/Games-source/FIFA <N>/ dir with a recognisable exe
@@ -57,7 +67,7 @@ for V in "${versions[@]}"; do
   WRAP="$WRAP_DIR/launch-fifa$V.sh"
   cat > "$WRAP" <<EOF
 #!/bin/bash
-exec /bin/bash "$MASTER" $V "\$@"
+exec /bin/bash "$RUNTIME_MASTER" $V "\$@"
 EOF
   chmod +x "$WRAP"
   echo "wrapper: $WRAP"
