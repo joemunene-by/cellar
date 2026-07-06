@@ -61,7 +61,8 @@ exec /bin/bash "$MASTER" $V "\$@"
 EOF
   chmod +x "$WRAP"
   echo "wrapper: $WRAP"
-  "$MAKER" "FIFA $V" "$WRAP"
+  # Pass the game dir so make-game-app.sh auto-extracts the real FIFA icon from its exe.
+  "$MAKER" "FIFA $V" "$WRAP" "$HOME/Games-source/FIFA $V"
 done
 
 echo "done. apps land in /Applications/cellar Games/"

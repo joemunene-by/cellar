@@ -55,14 +55,26 @@ echo " exes:   ${#exes[@]} found"
 echo "==========================================================="
 
 # ---- HARD WALL 1: hypervisor Denuvo bypass -------------------------------
+# The bypass needs the reflex loader / kernel-driver FILES to run. The exe's
+# REFLEX_TRAP hooks are only operative when those files are present; a software
+# re-crack (e.g. voices38) leaves the string but neutralizes it in user space
+# and runs fine under Wine. So the string is a wall ONLY alongside the files.
+hv_files=0
 if has_file "SimpleSvm.sys" || has_file "hyperkd.sys"; then
-  hits_wall=$((hits_wall+1)); note "WALL" "hypervisor kernel driver (SimpleSvm/hyperkd) — needs Ring-0 + x86 VT-x"
+  hits_wall=$((hits_wall+1)); hv_files=1
+  note "WALL" "hypervisor kernel driver (SimpleSvm/hyperkd) — needs Ring-0 + x86 VT-x"
 fi
 if has_file "reflex.dll" || has_file "reflex.ini"; then
-  hits_wall=$((hits_wall+1)); note "WALL" "reflex loader present (DenuvOwO hypervisor bypass)"
+  hits_wall=$((hits_wall+1)); hv_files=1
+  note "WALL" "reflex loader present (DenuvOwO hypervisor bypass)"
 fi
 if exe_contains "REFLEX_TRAP"; then
-  hits_wall=$((hits_wall+1)); note "WALL" "exe has REFLEX_TRAP hooks (Denuvo welded to a hypervisor)"
+  if [ "$hv_files" -eq 1 ]; then
+    note "info" "exe also has REFLEX_TRAP hooks (corroborates the hypervisor files above)"
+  else
+    soft=$((soft+1))
+    note "caution" "exe has REFLEX_TRAP hooks but NO reflex/driver files — looks like a user-space re-crack (voices38-style); should run, confirm by launching"
+  fi
 fi
 if [ -f "$DIR/anadius.cfg" ] && grep -qiE '"DenuvoExeHash"[[:space:]]*"[0-9a-f]{8,}"' "$DIR/anadius.cfg"; then
   hits_wall=$((hits_wall+1)); note "WALL" "anadius.cfg lists a live DenuvoExeHash (Denuvo still in the exe)"
