@@ -41,14 +41,20 @@ PIDFILE="/tmp/fifa$VER.pid"
 RES_W=1920
 RES_H=1080
 
+# Controller detection depends on a FRESH wineserver: Wine scans joysticks only
+# at server startup, so a lingering wineserver (a session backed-out-of, or
+# fifaconfig left open) makes the launch miss the pad. Kill EVERYTHING, wait for
+# the server to fully exit, then let USB/HID settle so SDL re-enumerates the pad.
 pkill -9 -f "wine64-preloader" 2>/dev/null
 # pkill -f uses regex on BSD/macOS; this catches FIFA<N>.exe regardless of case.
 pkill -9 -f "[Ff][Ii][Ff][Aa]${VER}" 2>/dev/null
+pkill -9 -f "fifaconfig" 2>/dev/null
 pkill -9 -f "EAAntiCheat" 2>/dev/null
 pkill -9 -f "EALaunchHelper" 2>/dev/null
 pkill -9 -f "OriginWebHelperService" 2>/dev/null
 pkill -9 wineserver 2>/dev/null
-sleep 2
+for _i in $(seq 1 20); do pgrep -x wineserver >/dev/null 2>&1 || break; sleep 0.5; done
+sleep 3
 
 mkdir -p "$(dirname "$PREFIX")"
 
