@@ -211,6 +211,50 @@ fi
 GAME_EXE="$RESOLVED_EXE"
 echo "resolved exe: $GAME_EXE" >> "$LOG"
 
+# --- Auto-connect the gamepad -------------------------------------------------
+# Wine scans joysticks only when the wineserver (winebus) starts, and macOS's
+# gamecontrollerd races Wine for the physical device — so a fresh start often
+# misses the pad even though it's plugged in. If a joystick is physically
+# present, start a PERSISTENT wineserver, force HID enumeration, and verify
+# winebus actually grabbed the pad: Wine logs `handle_DeviceMatchingCallback dev`
+# only when it ACCEPTS a joystick (it logs "Ignoring" for keyboards/mice). Retry
+# the restart until Wine wins the race; the game then inherits that warm server,
+# which keeps the device claimed away from macOS. If the pad still can't be
+# grabbed after the retries, launch anyway (the game runs fine on keyboard+mouse).
+# Set CELLAR_NO_PAD=1 to skip this entirely.
+if [ "${CELLAR_NO_PAD:-0}" != "1" ] && system_profiler SPUSBDataType 2>/dev/null | grep -qi joystick; then
+  echo "controller present on USB - pre-warming Wine so it grabs the pad" | tee -a "$LOG"
+  pad_ok=0
+  for attempt in 1 2 3 4 5; do
+    pkill -9 -f "joy.cpl" 2>/dev/null
+    pkill -9 -f "wine64-preloader" 2>/dev/null
+    pkill -9 wineserver 2>/dev/null
+    for _i in $(seq 1 20); do pgrep -x wineserver >/dev/null 2>&1 || break; sleep 0.5; done
+    sleep 1
+    # Persistent server so winebus's enumeration survives for the game to inherit.
+    env "${env_base[@]}" "$WINESERVER" -p 2>/dev/null
+    probe=$(mktemp)
+    # joy.cpl loads the HID/dinput stack, which triggers winebus enumeration.
+    env "${env_base[@]}" WINEDEBUG=+hid "$WINE" control joy.cpl >"$probe" 2>&1 &
+    ppid=$!
+    for _j in $(seq 1 14); do
+      grep -q "handle_DeviceMatchingCallback dev " "$probe" 2>/dev/null && { pad_ok=1; break; }
+      sleep 0.5
+    done
+    # Close only the probe UI; KEEP the persistent wineserver (it holds the pad).
+    kill -9 "$ppid" 2>/dev/null
+    pkill -9 -f "joy.cpl" 2>/dev/null
+    rm -f "$probe"
+    if [ "$pad_ok" = "1" ]; then
+      echo "  attempt $attempt: Wine grabbed the pad - launching with controller" | tee -a "$LOG"
+      break
+    fi
+    echo "  attempt $attempt: Wine did not see the pad, retrying..." | tee -a "$LOG"
+  done
+  [ "$pad_ok" != "1" ] && \
+    echo "  couldn't hand the pad to Wine (macOS held it) - launching on keyboard+mouse" | tee -a "$LOG"
+fi
+
 cd "$GAME_DIR"
 echo "===== game output =====" >> "$LOG"
 
