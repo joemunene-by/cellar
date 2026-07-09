@@ -104,6 +104,19 @@ if [ "$hits_wall" -eq 0 ] && exe_contains "Denuvo"; then
   soft=$((soft+1)); note "caution" "ordinary Denuvo (user-mode) — usually runs, can be heavy/flaky"
 fi
 
+# ---- CAUTION: UWP / Xbox app package (finicky under Wine) ----------------
+if has_file "AppxManifest.xml" || has_file "MicrosoftGame.config" || has_file "gamelaunchhelper.exe"; then
+  soft=$((soft+1)); note "caution" "UWP / Xbox app package — Xbox sign-in + UWP sandboxing make these finicky under Wine (Game Pass builds, e.g. Forza)"
+fi
+
+# ---- INFO: rendering path + software-crack signatures --------------------
+if exe_contains "d3d12" && ! exe_contains "d3d11"; then
+  note "info" "looks DX12-only — cellar runs DX12 via dxmt/D3DMetal, but it is heavier; DX11 titles are smoother"
+fi
+if [ -f "$DIR/anadius.cfg" ] && grep -qi "voices38" "$DIR/anadius.cfg" 2>/dev/null; then
+  note "info" "voices38 software crack (no hypervisor) — the Wine-friendly kind, should run"
+fi
+
 echo "-----------------------------------------------------------"
 if [ "$hits_wall" -gt 0 ]; then
   echo " VERDICT: WILL NOT RUN under cellar/Wine on this Mac ($hits_wall hard-wall marker(s))."
