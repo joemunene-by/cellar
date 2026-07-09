@@ -14,6 +14,12 @@
 
 cellar_free_input() {
   local log="${1:-/dev/null}"
+  # CELLAR_KEEP_STEAM=1 keeps Steam running on purpose (Steam Input method:
+  # Steam seizes the pad and maps it to keyboard/mouse for the Wine game).
+  if [ "${CELLAR_KEEP_STEAM:-0}" = "1" ]; then
+    echo "free-input: CELLAR_KEEP_STEAM=1 - leaving Steam running for Steam Input" >> "$log"
+    return 0
+  fi
   if pgrep -x Steam >/dev/null 2>&1 || pgrep -x steam_osx >/dev/null 2>&1; then
     echo "free-input: quitting Steam so it releases seized controllers..." >> "$log"
     osascript -e 'tell application "Steam" to quit' >/dev/null 2>&1
