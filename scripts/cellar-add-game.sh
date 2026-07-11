@@ -35,6 +35,9 @@ if [ -z "$LAUNCHER" ]; then
   cp "$SELF/launch-engine.sh" "$HOME/.cellar/launchers/launch-engine.sh"
   cp "$SELF/free-input.sh"    "$HOME/.cellar/launchers/free-input.sh" 2>/dev/null || true
   chmod +x "$HOME/.cellar/launchers/"launch-engine.sh 2>/dev/null || true
+  # The copied launcher resolves profiles.json as ~/.cellar/profiles.json
+  # (dirname/.. of ~/.cellar/launchers), so the bundled profiles must live there.
+  cp "$SELF/../profiles.json" "$HOME/.cellar/profiles.json"
   slug=$(echo "$NAME" | tr 'A-Z ' 'a-z-' | tr -dc 'a-z0-9-')
   LAUNCHER="$HOME/.cellar/launchers/launch-$slug.sh"
   printf '#!/bin/bash\nexec /bin/bash "%s" "%s" "%s"\n' \
