@@ -262,7 +262,7 @@ fi
 # (Elden Ring, Hogwarts, Dark Souls etc. all keep their real exe there with
 # a launcher at the top). Skip uninstaller / crash-handler / setup helpers.
 slug_nosep=$(echo "$GAME_SLUG" | tr -d '-')
-skip_re='(^|/)(Uu?[Nn][Ii][Nn][Ss][Tt][Aa][Ll][Ll]|[Cc]rash[Hh]andler|[Cc]rash[Rr]eport|UnityCrashHandler|EAAntiCheat|EALaunchHelper|[Ss]etup|[Cc]onfig|[Bb]enchmark|RGL|[Ll]auncher|[Pp]rerequisite|vc_redist)'
+skip_re='(^|/)(\._|Uu?[Nn][Ii][Nn][Ss][Tt][Aa][Ll][Ll]|[Cc]rash[Hh]andler|[Cc]rash[Rr]eport|UnityCrashHandler|[Cc]rs-|EAAntiCheat|EALaunchHelper|[Ss]etup|[Cc]onfig|[Bb]enchmark|RGL|[Ll]auncher|[Pp]rerequisite|vc_redist)'
 # Pattern × depth matrix. Top-of-dir first because most games keep the
 # launcher there. UE Shipping exes live at depth 3 (Binaries/Win64/foo.exe).
 # DXVK / Goldberg loaders at deeper paths aren't game binaries; we cap at
