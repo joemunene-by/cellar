@@ -330,6 +330,33 @@
       ]
     },
     {
+      "id": "ghost-tsushima",
+      "name": "Ghost of Tsushima Director's Cut (Sucker Punch)",
+      "match_name_contains": ["ghost of tsushima", "tsushima"],
+      "description": "Sucker Punch's in-house engine, DX12-only, routed through D3DMetal like the other DX12 profiles (nvapi disabled). Ships Microsoft DirectStorage (dstorage.dll / dstoragecore.dll); GPU decompression is unsupported under wine but the runtime falls back to CPU streaming, so the native DLLs are left to load. The RUNE 'crs' crack (crs-client.dll / crs-handler.exe / crs-video.exe + a Steam emu steam_api64.dll) proxies through a ~1MB winmm.dll, so winmm is forced native,builtin for the crack to inject - without that override wine's builtin winmm loads and the crack never initializes. No anti-cheat (single-player). Launches GhostOfTsushima.exe. 54GB install; runs fine from an external SSD, same as GTA V did.",
+      "settings": {
+        "dxvk": false,
+        "esync": false,
+        "msync": true,
+        "metal_fences": false,
+        "metal_hud": false,
+        "dll_overrides": "winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=;winmm=n,b",
+        "env": {
+          "ROSETTA_ADVERTISE_AVX": "1",
+          "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
+          "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS": "2",
+          "MVK_CONFIG_FAST_MATH_ENABLED": "1"
+        },
+        "launch_args": []
+      },
+      "requires": [
+        "winetricks_vcrun2019",
+        "winetricks_vcrun2022",
+        "winetricks_corefonts",
+        "winetricks_d3dcompiler_47"
+      ]
+    },
+    {
       "id": "unity-il2cpp-2022",
       "name": "Generic Unity 2022 IL2CPP",
       "match_name_contains": [],
