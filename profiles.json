@@ -357,6 +357,32 @@
       ]
     },
     {
+      "id": "cod-blackops3",
+      "name": "Call of Duty: Black Ops III (Treyarch IW engine)",
+      "match_name_contains": ["black ops iii", "black ops 3", "blackops3", "bo3", "call of duty black ops iii"],
+      "description": "Treyarch IW engine, DX11. 2015 title with no kernel anti-cheat - campaign and Zombies run offline under Wine/D3DMetal. Cracked builds ship a Steam emu (steam_api64.dll + steam00064.wow) that loads app-local/native automatically, so no dll override is needed for it. Launches BlackOps3.exe (the launcher skips CrashUploader.exe). Online multiplayer needs cracked servers (e.g. Plutonium t7x) which is a separate, unsupported setup. Standard vcrun2019 + corefonts + d3dcompiler_47 winetricks set.",
+      "settings": {
+        "dxvk": false,
+        "esync": false,
+        "msync": true,
+        "metal_fences": false,
+        "metal_hud": false,
+        "dll_overrides": "winemenubuilder.exe=;d3d11,d3d12,dxgi,d3d10core=n,b;nvapi,nvapi64=",
+        "env": {
+          "ROSETTA_ADVERTISE_AVX": "1",
+          "MVK_CONFIG_USE_METAL_PRIVATE_API": "1",
+          "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS": "2",
+          "MVK_CONFIG_FAST_MATH_ENABLED": "1"
+        },
+        "launch_args": []
+      },
+      "requires": [
+        "winetricks_vcrun2019",
+        "winetricks_corefonts",
+        "winetricks_d3dcompiler_47"
+      ]
+    },
+    {
       "id": "unity-il2cpp-2022",
       "name": "Generic Unity 2022 IL2CPP",
       "match_name_contains": [],
