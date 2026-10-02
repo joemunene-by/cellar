@@ -9,6 +9,7 @@
 
 mod archive;
 mod d3dmetal;
+mod ghostscale;
 mod installer;
 mod library;
 mod prereq;
@@ -60,6 +61,8 @@ fn main() {
             d3dmetal::d3dmetal_list,
             d3dmetal::d3dmetal_get,
             d3dmetal::d3dmetal_set,
+            ghostscale::ghostscale_status,
+            ghostscale::ghostscale_link,
         ])
         .run(tauri::generate_context!())
         .expect("cellar: failed to start tauri runtime");

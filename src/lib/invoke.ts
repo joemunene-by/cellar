@@ -210,6 +210,23 @@ export const tools = {
 
 // ----------------------- D3DMetal per-bottle version pin -----------------------
 
+export interface LinkableGame {
+  profile: string;
+  name: string;
+  linked: boolean;
+}
+
+export interface GhostscaleStatus {
+  installed: boolean;
+  games: LinkableGame[];
+}
+
+export const ghostscale = {
+  status: () => invoke<GhostscaleStatus>('ghostscale_status'),
+  link: (name: string, profile: string, on: boolean) =>
+    invoke<void>('ghostscale_link', { name, profile, on }),
+};
+
 export const d3dmetal = {
   /** Version labels the user can pin to: "default" plus any local installs. */
   list: () => invoke<string[]>('d3dmetal_list'),

@@ -32,9 +32,13 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 # and exits immediately. macOS treats long-running foreground processes in
 # Contents/MacOS as "the app", and they show in the Dock until they exit. We
 # want the wine launcher (with its own window) to be the visible thing, not us.
+mkdir -p "$HOME/.cellar/launchers"
+cp "$(dirname "$0")/ghostscale-hook.sh" "$HOME/.cellar/launchers/ghostscale-hook.sh"
 cat > "$APP_DIR/Contents/MacOS/$NAME" <<EOF
 #!/bin/bash
 # launcher wrapper for cellar game: $NAME
+hook="\$HOME/.cellar/launchers/ghostscale-hook.sh"
+[ -f "\$hook" ] && . "\$hook" "$NAME" "$SCRIPT"
 exec /bin/bash "$SCRIPT" >>/tmp/cellar-game.log 2>&1
 EOF
 chmod +x "$APP_DIR/Contents/MacOS/$NAME"

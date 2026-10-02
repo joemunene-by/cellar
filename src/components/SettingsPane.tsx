@@ -10,8 +10,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import { runtime, wine, isCellarError } from '../lib/invoke';
-import type { Bottle, RuntimeStatus } from '../lib/invoke';
+import { ghostscale, runtime, wine, isCellarError } from '../lib/invoke';
+import type { Bottle, GhostscaleStatus, RuntimeStatus } from '../lib/invoke';
 
 const WINETRICKS_VERBS: { verb: string; label: string; minutes: string }[] = [
   { verb: 'vcrun2022', label: 'Visual C++ 2015-2022', minutes: '~2-4 min' },
@@ -28,12 +28,14 @@ export default function SettingsPane() {
   const [error, setError] = useState<string | null>(null);
   const [wineTest, setWineTest] = useState<{ ok: boolean; output: string } | null>(null);
   const [testingWine, setTestingWine] = useState(false);
+  const [gs, setGs] = useState<GhostscaleStatus | null>(null);
 
   const reload = useCallback(async () => {
     setError(null);
     try {
-      const [s, bs] = await Promise.all([runtime.status(), wine.listBottles()]);
+      const [s, bs, g] = await Promise.all([runtime.status(), wine.listBottles(), ghostscale.status()]);
       setStatus(s);
+      setGs(g);
       setBottles(bs);
       const probes = await Promise.all(
         bs.map(async (b) => [b.id, await wine.bottleDxvkStatus(b.id).catch(() => false)] as const),
@@ -161,6 +163,16 @@ export default function SettingsPane() {
     }
   };
 
+  const toggleGhostscale = async (name: string, profile: string, on: boolean) => {
+    setError(null);
+    try {
+      await ghostscale.link(name, profile, on);
+      setGs(await ghostscale.status());
+    } catch (err) {
+      setError(formatErr(err));
+    }
+  };
+
   return (
     <div className="pane">
       <header className="pane-header">
@@ -216,6 +228,36 @@ export default function SettingsPane() {
               </code>
             )}
           </div>
+        )}
+      </section>
+
+      <section className="settings-section">
+        <h3>ghostscale</h3>
+        {!gs ? (
+          <p className="muted">Loading...</p>
+        ) : !gs.installed ? (
+          <p className="muted">
+            ghostscale is not installed. Install it to play supported games with its neural upscaler.
+          </p>
+        ) : gs.games.length === 0 ? (
+          <p className="muted">None of your cellar games has a ghostscale profile yet.</p>
+        ) : (
+          <>
+            {gs.games.map((g) => (
+              <label className="toggle-row" key={g.profile}>
+                <input
+                  type="checkbox"
+                  checked={g.linked}
+                  onChange={(e) => toggleGhostscale(g.name, g.profile, e.target.checked)}
+                />
+                <span>{g.name}</span>
+              </label>
+            ))}
+            <p className="muted">
+              Linked games start with ghostscale when you open them from cellar Games. Change the look
+              from the GS menu in the menu bar.
+            </p>
+          </>
         )}
       </section>
 
