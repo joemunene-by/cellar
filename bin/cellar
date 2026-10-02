@@ -43,7 +43,13 @@
 #   cellar inspect carxstreet-hybrid
 set -u
 
-CELLAR_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Resolve through symlinks so an installed `cellar` on PATH still finds the repo.
+self="${BASH_SOURCE[0]}"
+while [ -L "$self" ]; do
+  target="$(readlink "$self")"
+  case "$target" in /*) self="$target" ;; *) self="$(dirname "$self")/$target" ;; esac
+done
+CELLAR_ROOT="$(cd "$(dirname "$self")/.." && pwd)"
 SCRIPTS="$CELLAR_ROOT/scripts"
 
 usage() {

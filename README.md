@@ -28,15 +28,12 @@ Windows-shaped environment.
 ## quick start
 
 ```sh
-# clone + one-time GPTK install
+# clone, then one command: GPTK runtime + `cellar` on PATH + completions
 git clone https://github.com/joemunene-by/cellar.git
 cd cellar
-./scripts/setup-gptk.sh
+make install          # or: ./scripts/install.sh
 
-# (optional, but recommended) put cellar on PATH
-export PATH="$PWD/bin:$PATH"
-
-# health check
+# health check (the installer runs this too)
 cellar doctor
 
 # match a game to an engine-family profile
@@ -249,10 +246,17 @@ Whisky is the obvious incumbent. It is well-built. cellar exists because:
 
 ## getting going
 
+To just use cellar (the CLI is the source of truth), one command does everything:
+
 ```sh
 git clone https://github.com/joemunene-by/cellar.git
 cd cellar
-./scripts/setup-gptk.sh    # one-time GPTK + Wine + DXVK install
+make install               # GPTK runtime + cellar on PATH + completions + doctor
+```
+
+Only building the optional Tauri GUI needs the Rust, Tauri, and Node toolchains above:
+
+```sh
 npm install
 cargo tauri dev            # live reload during development
 ```
