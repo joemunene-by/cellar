@@ -25,17 +25,33 @@ clickable `.app` in `/Applications/cellar Games/`. Built for FitGirl-
 adjacent repacks and standalone cracked builds that expect a real
 Windows-shaped environment.
 
+## install
+
+### download (recommended)
+
+1. Download **[cellar-mac.dmg](https://github.com/joemunene-by/cellar/releases/latest/download/cellar-mac.dmg)** from the [latest release](https://github.com/joemunene-by/cellar/releases/latest).
+2. Open the `.dmg` and drag **cellar** onto **Applications**.
+3. First launch: the alpha is unsigned, so macOS says it "cannot be opened because Apple cannot check it". Right-click **cellar** in Applications, choose **Open**, then **Open** again. One time only.
+
+cellar then needs its runtime set up once (Apple's Game Porting Toolkit plus Wine, which cannot be bundled or redistributed). In Terminal:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/joemunene-by/cellar/main/scripts/setup-gptk.sh | bash
+```
+
+The Settings tab shows the runtime status and turns green once it is ready.
+
+### from source (CLI)
+
+```sh
+git clone https://github.com/joemunene-by/cellar.git
+cd cellar
+make install          # GPTK runtime + cellar on PATH + completions + doctor
+```
+
 ## quick start
 
 ```sh
-# clone, then one command: GPTK runtime + `cellar` on PATH + completions
-git clone https://github.com/joemunene-by/cellar.git
-cd cellar
-make install          # or: ./scripts/install.sh
-
-# health check (the installer runs this too)
-cellar doctor
-
 # match a game to an engine-family profile
 cellar find "Need for Speed Heat"
 #   Best match: frostbite-multi

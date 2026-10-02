@@ -64,6 +64,7 @@ jobs:
           # Tauri 2 build output paths.
           dmg=$(find src-tauri/target -type f -name '*.dmg' | head -1)
           app=$(find src-tauri/target -type d -name 'cellar.app' | head -1)
+          [ -n "$dmg" ] && cp "$dmg" /tmp/cellar-mac.dmg
           echo "dmg=$dmg" >> "$GITHUB_OUTPUT"
           echo "app=$app" >> "$GITHUB_OUTPUT"
           ls -la "$dmg" 2>/dev/null || true
@@ -73,16 +74,16 @@ jobs:
         if: steps.locate.outputs.app != ''
         run: |
           cd "$(dirname '${{ steps.locate.outputs.app }}')"
-          tar -czf "/tmp/cellar.app.tar.gz" "$(basename '${{ steps.locate.outputs.app }}')"
-          ls -la /tmp/cellar.app.tar.gz
+          tar -czf "/tmp/cellar-mac.app.tar.gz" "$(basename '${{ steps.locate.outputs.app }}')"
+          ls -la /tmp/cellar-mac.app.tar.gz
 
       - name: upload artifacts to release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           files: |
-            ${{ steps.locate.outputs.dmg }}
-            /tmp/cellar.app.tar.gz
+            /tmp/cellar-mac.dmg
+            /tmp/cellar-mac.app.tar.gz
           fail_on_unmatched_files: false
           body: |
             cellar release artifacts.
@@ -94,14 +95,14 @@ jobs:
 
             ### Install (.dmg)
 
-            1. Download `cellar_*.dmg`
+            1. Download `cellar-mac.dmg`
             2. Open the dmg, drag cellar to Applications
             3. Right-click cellar in Applications -> Open (one-time)
 
             ### Install (.app.tar.gz)
 
             ```sh
-            tar -xzf cellar.app.tar.gz -C /Applications
+            tar -xzf cellar-mac.app.tar.gz -C /Applications
             xattr -dr com.apple.quarantine /Applications/cellar.app
             ```
 
