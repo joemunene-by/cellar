@@ -53,10 +53,12 @@ jobs:
           cargo tauri build --target universal-apple-darwin || \
           cargo tauri build
         env:
-          # No code-signing for the alpha. Users will see Gatekeeper warning
-          # on first launch; documented in README known-issues.
-          APPLE_SIGNING_IDENTITY: ""
-          APPLE_CERTIFICATE: ""
+          # Ad-hoc signing (identity "-") for the unsigned alpha: an empty
+          # identity makes codesign fail looking it up in the keychain, and a
+          # universal binary needs at least an ad-hoc signature to run on
+          # Apple Silicon. Gatekeeper still warns on first launch (right-click
+          # Open); documented in README known-issues.
+          APPLE_SIGNING_IDENTITY: "-"
 
       - name: locate built artifacts
         id: locate
