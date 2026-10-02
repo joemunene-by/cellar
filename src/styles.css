@@ -340,14 +340,14 @@ code {
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
-  border-color: rgba(255, 255, 255, 0.18);
-  color: #fff;
-  box-shadow: var(--sheen-strong), 0 6px 18px rgba(255, 255, 255, 0.4);
+  background: linear-gradient(180deg, #ffffff, #e4e6ea);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #0b0b0e;
+  box-shadow: var(--sheen-strong), 0 6px 18px rgba(0, 0, 0, 0.4);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #a0a0a0, #7d7d7d);
+  background: linear-gradient(180deg, #ffffff, #f1f2f5);
 }
 
 .btn-ghost {
