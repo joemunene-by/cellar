@@ -13,17 +13,17 @@
  * ------------------------------------------------------------ */
 
 :root {
-  /* Accents */
-  --accent: #4f9dff;
-  --accent-strong: #2f7bf6;
-  --accent-soft: rgba(79, 157, 255, 0.16);
-  --accent-line: rgba(79, 157, 255, 0.42);
+  /* Accents (monochrome: white carries emphasis, no hue) */
+  --accent: #ffffff;
+  --accent-strong: #e9ecf2;
+  --accent-soft: rgba(255, 255, 255, 0.12);
+  --accent-line: rgba(255, 255, 255, 0.46);
 
   /* Text */
-  --text: #eef1f8;
-  --text-dim: #aab2c5;
-  --text-faint: #7a8198;
-  --text-ghost: #565d72;
+  --text: #f4f5f8;
+  --text-dim: #b4b7c0;
+  --text-faint: #83868f;
+  --text-ghost: #585b64;
 
   /* Glass materials. Each surface = translucent fill + blur + light edge. */
   --glass-1: rgba(255, 255, 255, 0.045); /* recessed wells, logs */
@@ -31,15 +31,15 @@
   --glass-3: rgba(255, 255, 255, 0.10); /* raised / hover */
   --glass-4: rgba(255, 255, 255, 0.14); /* active / sticky chrome */
 
-  --stroke: rgba(255, 255, 255, 0.10);
-  --stroke-strong: rgba(255, 255, 255, 0.16);
+  --stroke: rgba(255, 255, 255, 0.11);
+  --stroke-strong: rgba(255, 255, 255, 0.20);
 
   /* The signature liquid-glass sheen: a bright hairline on the top edge plus
    * a soft drop shadow for float. */
-  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  --sheen-strong: inset 0 1px 0 rgba(255, 255, 255, 0.26);
-  --float: 0 8px 30px rgba(0, 0, 0, 0.42);
-  --float-lg: 0 18px 50px rgba(0, 0, 0, 0.5);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  --sheen-strong: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  --float: 0 10px 34px rgba(0, 0, 0, 0.5);
+  --float-lg: 0 22px 60px rgba(0, 0, 0, 0.6);
 
   --blur: saturate(170%) blur(22px);
   --blur-strong: saturate(180%) blur(34px);
@@ -48,10 +48,10 @@
   --radius: 14px;
   --radius-lg: 20px;
 
-  /* Status hues */
-  --ok: #74e0a0;
-  --bad: #ff8a8a;
-  --warn: #ffcf7a;
+  /* Status tones (monochrome: distinguished by brightness, not hue) */
+  --ok: #f2f3f6;
+  --bad: #8e9095;
+  --warn: #c6c9d2;
 }
 
 * {
@@ -70,7 +70,7 @@ body {
   font: 13px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
-  background-color: #06070d;
+  background-color: #070709;
 }
 
 /* ------------------------------------------------------------
@@ -83,10 +83,10 @@ body::before {
   inset: -20vmax;
   z-index: -2;
   background:
-    radial-gradient(38vmax 38vmax at 18% 22%, rgba(79, 157, 255, 0.30), transparent 60%),
-    radial-gradient(34vmax 34vmax at 82% 18%, rgba(157, 102, 255, 0.26), transparent 62%),
-    radial-gradient(42vmax 42vmax at 72% 84%, rgba(52, 211, 196, 0.20), transparent 60%),
-    radial-gradient(40vmax 40vmax at 26% 88%, rgba(255, 120, 162, 0.16), transparent 62%);
+    radial-gradient(38vmax 38vmax at 18% 22%, rgba(255, 255, 255, 0.10), transparent 60%),
+    radial-gradient(34vmax 34vmax at 82% 18%, rgba(255, 255, 255, 0.07), transparent 62%),
+    radial-gradient(42vmax 42vmax at 72% 84%, rgba(255, 255, 255, 0.06), transparent 60%),
+    radial-gradient(40vmax 40vmax at 26% 88%, rgba(255, 255, 255, 0.05), transparent 62%);
   filter: blur(8px);
   animation: aurora 38s ease-in-out infinite alternate;
 }
@@ -98,7 +98,7 @@ body::after {
   inset: 0;
   z-index: -3;
   background:
-    radial-gradient(120vmax 80vmax at 50% -10%, #11162b 0%, #080a14 55%, #05060c 100%);
+    radial-gradient(120vmax 80vmax at 50% -10%, #15161a 0%, #0a0b0d 55%, #060607 100%);
 }
 
 @keyframes aurora {
@@ -128,7 +128,7 @@ code {
   background: var(--glass-2);
   padding: 1px 6px;
   border-radius: 5px;
-  color: #ffd6a6;
+  color: #e6e8ee;
   font-size: 12px;
   border: 1px solid var(--stroke);
 }
@@ -162,7 +162,7 @@ code {
   font-weight: 700;
   letter-spacing: 0.01em;
   color: #fff;
-  background: linear-gradient(180deg, #ffffff, #c9d6f5);
+  background: linear-gradient(180deg, #ffffff, #c3c6cf);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -195,10 +195,10 @@ code {
 }
 
 .sidebar-tab-active {
-  background: linear-gradient(180deg, var(--accent-soft), rgba(79, 157, 255, 0.08));
+  background: linear-gradient(180deg, var(--accent-soft), rgba(255, 255, 255, 0.08));
   border-color: var(--accent-line);
   color: #fff;
-  box-shadow: var(--sheen), 0 4px 16px rgba(47, 123, 246, 0.28);
+  box-shadow: var(--sheen), 0 4px 16px rgba(255, 255, 255, 0.28);
 }
 
 .sidebar-footer {
@@ -265,9 +265,9 @@ code {
 .error-box {
   margin-bottom: 16px;
   padding: 11px 13px;
-  background: rgba(255, 90, 90, 0.12);
-  border: 1px solid rgba(255, 120, 120, 0.34);
-  color: #ffb4a0;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  color: #c3c3c3;
   border-radius: var(--radius-sm);
   font-size: 12px;
   box-shadow: var(--sheen);
@@ -276,11 +276,11 @@ code {
 .hint-box {
   margin-top: 12px;
   padding: 11px 13px;
-  background: rgba(79, 157, 255, 0.10);
+  background: rgba(255, 255, 255, 0.10);
   border: 1px solid var(--accent-line);
   border-radius: var(--radius-sm);
   font-size: 12px;
-  color: #c4d3ee;
+  color: #d2d2d2;
   box-shadow: var(--sheen);
 }
 
@@ -343,11 +343,11 @@ code {
   background: linear-gradient(180deg, var(--accent), var(--accent-strong));
   border-color: rgba(255, 255, 255, 0.18);
   color: #fff;
-  box-shadow: var(--sheen-strong), 0 6px 18px rgba(47, 123, 246, 0.4);
+  box-shadow: var(--sheen-strong), 0 6px 18px rgba(255, 255, 255, 0.4);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #62a9ff, #3a85f8);
+  background: linear-gradient(180deg, #a0a0a0, #7d7d7d);
 }
 
 .btn-ghost {
@@ -456,7 +456,7 @@ code {
 .profile-badge {
   font-size: 10px;
   font-weight: 600;
-  color: #bcdcff;
+  color: #d8d8d8;
   background: var(--accent-soft);
   border: 1px solid var(--accent-line);
   border-radius: 999px;
@@ -469,9 +469,9 @@ code {
 .ready-badge {
   font-size: 10px;
   font-weight: 600;
-  color: #b6f1cb;
-  background: rgba(78, 200, 110, 0.14);
-  border: 1px solid rgba(78, 200, 110, 0.42);
+  color: #e2e2e2;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.42);
   border-radius: 999px;
   padding: 2px 9px;
   letter-spacing: 0.02em;
@@ -482,9 +482,9 @@ code {
 .needs-setup-badge {
   font-size: 10px;
   font-weight: 600;
-  color: #ffe0a0;
-  background: rgba(220, 180, 60, 0.14);
-  border: 1px solid rgba(220, 180, 60, 0.46);
+  color: #dedede;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.46);
   border-radius: 999px;
   padding: 2px 9px;
   letter-spacing: 0.02em;
@@ -495,7 +495,7 @@ code {
 }
 
 .needs-setup-badge:hover {
-  background: rgba(220, 180, 60, 0.26);
+  background: rgba(255, 255, 255, 0.26);
 }
 
 .game-card-meta {
@@ -645,11 +645,11 @@ code {
 .bottle-progress {
   margin-top: 8px;
   padding: 9px 13px;
-  background: rgba(79, 157, 255, 0.10);
+  background: rgba(255, 255, 255, 0.10);
   border: 1px solid var(--accent-line);
   border-radius: 10px;
   font-size: 12px;
-  color: #c4d3ee;
+  color: #d2d2d2;
   box-shadow: var(--sheen);
 }
 
@@ -664,7 +664,7 @@ code {
   overflow-y: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
-  color: #c2d2e8;
+  color: #d0d0d0;
   white-space: pre-wrap;
   word-break: break-word;
   margin: 0;
@@ -789,7 +789,7 @@ code {
 }
 
 .exe-size {
-  color: #9bb6ff;
+  color: #b6b6b6;
   text-align: right;
 }
 
@@ -811,15 +811,15 @@ code {
 }
 
 .smoke-result.ok {
-  background: rgba(78, 200, 110, 0.14);
-  border: 1px solid rgba(78, 200, 110, 0.4);
-  color: #a6ecc0;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #dadada;
 }
 
 .smoke-result.bad {
-  background: rgba(255, 90, 90, 0.13);
-  border: 1px solid rgba(255, 120, 120, 0.36);
-  color: #ff9d9d;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  color: #b1b1b1;
 }
 
 .winetricks-row {
@@ -869,7 +869,7 @@ code {
   overflow-y: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
-  color: #c2d2e8;
+  color: #d0d0d0;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -881,7 +881,7 @@ code {
 .drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(6, 8, 16, 0.5);
+  background: rgba(6, 6, 8, 0.5);
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   display: flex;
@@ -1103,19 +1103,19 @@ code {
 }
 
 .require-ok {
-  border-color: rgba(78, 200, 110, 0.4);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .require-ok code {
-  color: #a6ecc0;
+  color: #dadada;
 }
 
 .require-failed {
-  border-color: rgba(220, 90, 90, 0.44);
+  border-color: rgba(255, 255, 255, 0.44);
 }
 
 .require-failed code {
-  color: #ff9d9d;
+  color: #b1b1b1;
 }
 
 .require-running {
@@ -1123,11 +1123,11 @@ code {
 }
 
 .require-manual {
-  border-color: rgba(220, 180, 60, 0.44);
+  border-color: rgba(255, 255, 255, 0.44);
 }
 
 .require-manual code {
-  color: #ffe0a0;
+  color: #dedede;
 }
 
 .btn-small {
@@ -1226,27 +1226,27 @@ textarea.input {
 }
 
 .codec-badge-native {
-  background: rgba(78, 200, 110, 0.16);
-  color: #8fe6a4;
-  border: 1px solid rgba(78, 200, 110, 0.4);
+  background: rgba(255, 255, 255, 0.16);
+  color: #cfcfcf;
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .codec-badge-hybrid {
-  background: rgba(224, 160, 78, 0.16);
-  color: #f0c184;
-  border: 1px solid rgba(224, 160, 78, 0.4);
+  background: rgba(255, 255, 255, 0.16);
+  color: #c7c7c7;
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .codec-badge-unsupported {
-  background: rgba(224, 112, 112, 0.16);
-  color: #f0a0a0;
-  border: 1px solid rgba(224, 112, 112, 0.4);
+  background: rgba(255, 255, 255, 0.16);
+  color: #b1b1b1;
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .archive-peek-warning {
-  background: rgba(224, 160, 78, 0.13);
-  border: 1px solid rgba(224, 160, 78, 0.4);
-  color: #f0c184;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #c7c7c7;
   border-radius: 8px;
   padding: 7px 11px;
 }
@@ -1290,7 +1290,7 @@ textarea.input {
 }
 
 .archive-peek-files tr.is-dir td {
-  color: #8fe6a4;
+  color: #cfcfcf;
 }
 
 /* ---- Diagnostics section (bottle inspect / crash report / D3DMetal) ---- */
@@ -1302,7 +1302,7 @@ textarea.input {
 }
 .diag-label {
   font-size: 12px;
-  color: #c8c8d0;
+  color: #c9c9c9;
 }
 .diag-actions {
   display: flex;
@@ -1313,13 +1313,13 @@ textarea.input {
   max-height: 260px;
   overflow: auto;
   padding: 10px 12px;
-  background: #0e0e12;
-  border: 1px solid #2a2a32;
+  background: #0e0e0e;
+  border: 1px solid #2b2b2b;
   border-radius: 5px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   line-height: 1.5;
-  color: #cfd2da;
+  color: #d2d2d2;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -1341,8 +1341,8 @@ textarea.input {
 .toast {
   position: relative;
   padding: 12px 14px 12px;
-  background: #161620;
-  border: 1px solid #34344a;
+  background: #171717;
+  border: 1px solid #363636;
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   animation: drawer-fade-in 140ms ease-out;
@@ -1353,7 +1353,7 @@ textarea.input {
   right: 8px;
   background: none;
   border: none;
-  color: #8a8a98;
+  color: #8c8c8c;
   cursor: pointer;
   font-size: 12px;
 }
@@ -1361,12 +1361,12 @@ textarea.input {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #7fb0ff;
+  color: #acacac;
   margin-bottom: 4px;
 }
 .toast-body {
   font-size: 13px;
-  color: #d8d8e0;
+  color: #d9d9d9;
   margin-bottom: 8px;
 }
 .toast-cmd {
@@ -1377,11 +1377,11 @@ textarea.input {
 .toast-cmd code {
   flex: 1;
   padding: 4px 6px;
-  background: #0e0e12;
-  border: 1px solid #2a2a32;
+  background: #0e0e0e;
+  border: 1px solid #2b2b2b;
   border-radius: 4px;
   font-size: 11px;
-  color: #cfd2da;
+  color: #d2d2d2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
